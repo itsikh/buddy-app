@@ -64,6 +64,18 @@ class GoogleCloudTtsManager @Inject constructor(
         private const val LANG_HE = "he-IL"
 
         private val HEBREW_RANGE = '\u05D0'..'\u05EA'
+
+        private val DIGIT_TO_HE = mapOf(
+            '0' to "אפס", '1' to "אחד", '2' to "שניים", '3' to "שלושה",
+            '4' to "ארבעה", '5' to "חמישה", '6' to "שישה", '7' to "שבעה",
+            '8' to "שמונה", '9' to "תשעה"
+        )
+
+        // Latin-script words commonly used inside Hebrew speech — keep in Hebrew prosody
+        private val HEBREW_SLANG = setOf(
+            "ok", "okay", "yalla", "sababa", "cool", "super", "bye",
+            "wow", "walla", "ups", "oops", "nope", "yeah", "yep"
+        )
     }
 
     private val currentPlayer = AtomicReference<MediaPlayer?>(null)
@@ -207,15 +219,46 @@ class GoogleCloudTtsManager @Inject constructor(
     // ── SSML building ──────────────────────────────────────────────────────
 
     /**
-     * Splits text into Hebrew/English segments.
+     * Converts a single word's standalone digits to Hebrew number words.
+     * Handles hyphenated tokens like "ו-5" by splitting on '-' first.
+     */
+    private fun convertDigitsInWord(word: String): String =
+        word.split("-").joinToString("-") { part ->
+            if (part.isNotEmpty() && part.all { it.isDigit() })
+                part.map { DIGIT_TO_HE[it] ?: it.toString() }.joinToString("")
+            else part
+        }
+
+    /**
+     * Returns true if [word] should be treated as Hebrew for prosody purposes:
+     * - contains any Hebrew Unicode character, OR
+     * - is a Latin-script slang/loanword commonly used inside Hebrew speech.
+     * Pure punctuation (no letters) is treated as neutral (stays with current segment).
+     */
+    private fun isHebrewWord(word: String): Boolean {
+        val letters = word.filter { it.isLetter() }
+        if (letters.isEmpty()) return true  // punctuation-only → neutral
+        if (letters.any { it in HEBREW_RANGE }) return true
+        if (letters.lowercase() in HEBREW_SLANG) return true
+        return false
+    }
+
+    /**
+     * Splits text into Hebrew/English segments and wraps them with the appropriate SSML tag.
+     *
+     * Improvements over a naïve char-check:
+     * - Digits are converted to Hebrew number words so they don't fragment Hebrew prosody.
+     * - Latin-script Hebrew slang (wow, yalla, sababa…) stays in the Hebrew segment.
      *
      * Hebrew segments: no wrapper — Google silences Semitic `<lang>` tags.
-     * English segments: `<voice name="enVoiceName">...</voice>` — a **native English speaker**
-     *   pronounces the English words, which is correct for a kids' English-teaching app.
+     * English segments depend on [useVoiceTag]:
+     *   - `true`  (WaveNet): `<voice name="enVoiceName">` — switches to a native English speaker.
+     *   - `false` (Chirp3-HD): `<lang xml:lang="en-US">` — Chirp does NOT support `<voice>` tags.
      *
-     * @param enVoiceName  The English voice name to use (must match tier of the primary voice).
+     * @param enVoiceName  English voice name — used only when [useVoiceTag] is true.
+     * @param useVoiceTag  true = WaveNet `<voice>` tag, false = `<lang xml:lang="en-US">` for Chirp.
      */
-    private fun buildSsml(text: String, enVoiceName: String): String {
+    private fun buildSsml(text: String, enVoiceName: String, useVoiceTag: Boolean): String {
         data class Segment(val text: String, val isHebrew: Boolean)
 
         val segments = mutableListOf<Segment>()
@@ -230,8 +273,9 @@ class GoogleCloudTtsManager @Inject constructor(
             }
         }
 
-        for (word in words) {
-            val isHebrew = word.any { it in HEBREW_RANGE }
+        for (rawWord in words) {
+            val word = convertDigitsInWord(rawWord)
+            val isHebrew = isHebrewWord(word)
             if (currentIsHebrew == null) currentIsHebrew = isHebrew
             if (isHebrew != currentIsHebrew) flush()
             currentIsHebrew = isHebrew
@@ -239,25 +283,19 @@ class GoogleCloudTtsManager @Inject constructor(
         }
         flush()
 
-        // Single-language text
+        fun wrapEnglish(segText: String): String = if (useVoiceTag)
+            "<voice name=\"$enVoiceName\">$segText</voice>"
+        else
+            "<lang xml:lang=\"en-US\">$segText</lang>"
+
         if (segments.size == 1) {
-            return if (segments[0].isHebrew) {
-                "<speak>${segments[0].text}</speak>"
-            } else {
-                "<speak><voice name=\"$enVoiceName\">${segments[0].text}</voice></speak>"
-            }
+            return if (segments[0].isHebrew) "<speak>${segments[0].text}</speak>"
+            else "<speak>${wrapEnglish(segments[0].text)}</speak>"
         }
 
-        // Mixed: Hebrew bare, English wrapped in <voice> for native pronunciation
         val sb = StringBuilder("<speak>")
         for (seg in segments) {
-            if (seg.isHebrew) {
-                sb.append(seg.text)
-            } else {
-                sb.append("<voice name=\"$enVoiceName\">")
-                sb.append(seg.text)
-                sb.append("</voice>")
-            }
+            sb.append(if (seg.isHebrew) seg.text else wrapEnglish(seg.text))
             sb.append(" ")
         }
         sb.append("</speak>")
@@ -267,8 +305,9 @@ class GoogleCloudTtsManager @Inject constructor(
     // ── Google Cloud TTS ───────────────────────────────────────────────────
 
     /**
-     * Synthesizes [text] using [heVoiceName] as the primary Hebrew voice and
-     * [enVoiceName] for English segments via SSML `<voice>` tags.
+     * Synthesizes [text] using [heVoiceName] as the primary Hebrew voice.
+     * English segments use `<voice>` tags for WaveNet (native speaker) or
+     * `<lang xml:lang="en-US">` for Chirp3-HD (which doesn't support `<voice>`).
      */
     private suspend fun synthesize(
         apiKey: String,
@@ -276,10 +315,10 @@ class GoogleCloudTtsManager @Inject constructor(
         heVoiceName: String,
         enVoiceName: String
     ): ByteArray = withContext(Dispatchers.IO) {
-        val ssml = buildSsml(text, enVoiceName)
+        val isChirp = heVoiceName.contains("Chirp", ignoreCase = true)
+        val ssml = buildSsml(text, enVoiceName, useVoiceTag = !isChirp)
         AppLogger.d(TAG, "SSML [$heVoiceName]: $ssml")
 
-        val isChirp = heVoiceName.contains("Chirp", ignoreCase = true)
         val audioConfig = buildMap<String, Any> {
             put("audioEncoding", "MP3")
             put("speakingRate", 0.9)
