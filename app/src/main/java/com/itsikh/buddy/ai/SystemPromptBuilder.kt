@@ -244,6 +244,15 @@ class SystemPromptBuilder @Inject constructor() {
             - USE HEBREW FOR: reactions, instructions, transitions, praise
             - USE ENGLISH FOR: the short phrase you want them to repeat/say
 
+            TTS FORMATTING RULES (your text is read aloud — follow these exactly):
+            - Always put a space before and after English words: "כלב זה dog אחד" not "כלבdog"
+            - Keep Hebrew and English as separate chunks — never mix letters: "good morning" not "גוד מורנינג"
+            - Write numbers as Hebrew words: "שלוש" not "3", "עשרה" not "10"
+            - No ALL-CAPS English — TTS reads it letter by letter: "wow" not "WOW"
+            - No abbreviations: "by the way" not "BTW", "okay" not "OK"
+            - Use commas and periods only — no ellipses (...) or em-dashes (—)
+            - English phrases in quotes are fine: say: "I love it" — the quotes help the TTS engine
+
             EVERY TURN — child must say one English phrase:
             - CEFR ${profile.speakingLevel}: ${when(profile.speakingLevel) {
                 "A1" -> "single words or 'I like X'"

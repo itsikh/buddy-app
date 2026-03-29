@@ -12,6 +12,9 @@ import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.security.SecureKeyManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,11 +29,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
-enum class TtsBackend { UNKNOWN, GOOGLE_CLOUD, ANDROID_FALLBACK }
+/**
+ * Which Google Cloud TTS tier is active, or whether we fell back.
+ * CHIRP is higher-quality (Preview); WAVENET is the GA fallback.
+ */
+enum class TtsBackend { UNKNOWN, GOOGLE_CLOUD_CHIRP, GOOGLE_CLOUD_WAVENET, ANDROID_FALLBACK }
 
 @Singleton
 class GoogleCloudTtsManager @Inject constructor(
@@ -41,17 +45,23 @@ class GoogleCloudTtsManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "GoogleCloudTtsManager"
-        private const val TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
+        private const val TTS_URL = "https://texttospeech.googleapis.com/v1beta1/text:synthesize"
         private val JSON = "application/json".toMediaType()
 
-        // WaveNet voices — primary Hebrew voice since Buddy speaks Hebrew+English mix.
-        // SSML <lang> tags switch pronunciation to English for English segments.
-        private const val VOICE_HE_GIRL = "he-IL-Wavenet-A"  // warm female — default Buddy voice
-        private const val VOICE_HE_BOY  = "he-IL-Wavenet-B"  // natural male
-        private const val VOICE_EN_GIRL = "en-US-Wavenet-F"  // warm female, clear for kids
-        private const val VOICE_EN_BOY  = "en-US-Wavenet-D"  // friendly male
+        // ── Chirp3-HD voices (Preview, higher quality) ─────────────────────
+        // These are tried first. On any API error we fall back to WaveNet.
+        private const val VOICE_HE_GIRL_CHIRP = "he-IL-Chirp3-HD-Aoede"  // warm female
+        private const val VOICE_HE_BOY_CHIRP  = "he-IL-Chirp3-HD-Puck"   // friendly male
+        private const val VOICE_EN_GIRL_CHIRP = "en-US-Chirp3-HD-Aoede"  // matching English female
+        private const val VOICE_EN_BOY_CHIRP  = "en-US-Chirp3-HD-Puck"   // matching English male
+
+        // ── WaveNet voices (GA, stable fallback) ───────────────────────────
+        private const val VOICE_HE_GIRL_WAVENET = "he-IL-Wavenet-A"  // warm female
+        private const val VOICE_HE_BOY_WAVENET  = "he-IL-Wavenet-B"  // natural male
+        private const val VOICE_EN_GIRL_WAVENET = "en-US-Wavenet-F"  // warm female, clear for kids
+        private const val VOICE_EN_BOY_WAVENET  = "en-US-Wavenet-D"  // friendly male
+
         private const val LANG_HE = "he-IL"
-        private const val LANG_EN = "en-US"
 
         private val HEBREW_RANGE = '\u05D0'..'\u05EA'
     }
@@ -62,7 +72,7 @@ class GoogleCloudTtsManager @Inject constructor(
     /** The backend actually used for the most recent speak() call. */
     val ttsBackend: StateFlow<TtsBackend> = _ttsBackend.asStateFlow()
 
-    // Android built-in TTS — fallback when no Google Cloud key is set.
+    // Android built-in TTS — last-resort fallback when no Google Cloud key is set.
     private var androidTts: TextToSpeech? = null
     private var androidTtsReady = false
 
@@ -70,7 +80,7 @@ class GoogleCloudTtsManager @Inject constructor(
         androidTts = TextToSpeech(context) { status ->
             androidTtsReady = status == TextToSpeech.SUCCESS
             if (androidTtsReady) {
-                androidTts?.language = Locale("he", "IL")  // primary Hebrew
+                androidTts?.language = Locale("he", "IL")
                 androidTts?.setSpeechRate(0.88f)
             } else {
                 AppLogger.w(TAG, "Android TTS init failed: $status")
@@ -79,9 +89,17 @@ class GoogleCloudTtsManager @Inject constructor(
     }
 
     /**
-     * Speaks [text] aloud. Strips markdown/symbols, then uses SSML to switch
-     * between Hebrew and English voices mid-sentence for natural bilingual speech.
-     * Falls back to Android TTS when no Google Cloud key is configured.
+     * Speaks [rawText] aloud.
+     *
+     * Priority:
+     *   1. Google Cloud Chirp3-HD (high quality, Preview)
+     *   2. Google Cloud WaveNet (GA, stable)
+     *   3. Android built-in TTS (no key needed)
+     *
+     * English segments are spoken by a **native English voice** via SSML `<voice>` tags
+     * so children hear authentic English pronunciation — not a Hebrew voice approximating English.
+     * Hebrew segments are left bare (no `<lang>` tag) because Google's engine silences
+     * Semitic languages when wrapped in `<lang>` tags.
      */
     suspend fun speak(rawText: String, language: String = "HE") {
         stopSpeaking()
@@ -96,15 +114,34 @@ class GoogleCloudTtsManager @Inject constructor(
             return
         }
 
+        // Try Chirp3-HD first — better quality but Preview
         try {
-            val audioData = synthesizeWithSsml(apiKey, text)
-            _ttsBackend.value = TtsBackend.GOOGLE_CLOUD
+            val heVoice = buddyVoice(chirp = true, hebrew = true)
+            val enVoice = buddyVoice(chirp = true, hebrew = false)
+            val audioData = synthesize(apiKey, text, heVoice, enVoice)
+            _ttsBackend.value = TtsBackend.GOOGLE_CLOUD_CHIRP
+            AppLogger.d(TAG, "Chirp3-HD OK: $heVoice")
             playAudio(audioData)
+            return
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Google TTS failed: ${e.message} — falling back to Android TTS")
-            _ttsBackend.value = TtsBackend.ANDROID_FALLBACK
-            speakWithAndroidTts(text)
+            AppLogger.w(TAG, "Chirp3-HD failed (${e.message}) — trying WaveNet")
         }
+
+        // WaveNet fallback — GA, always available
+        try {
+            val heVoice = buddyVoice(chirp = false, hebrew = true)
+            val enVoice = buddyVoice(chirp = false, hebrew = false)
+            val audioData = synthesize(apiKey, text, heVoice, enVoice)
+            _ttsBackend.value = TtsBackend.GOOGLE_CLOUD_WAVENET
+            AppLogger.d(TAG, "WaveNet OK: $heVoice")
+            playAudio(audioData)
+            return
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "WaveNet failed (${e.message}) — falling back to Android TTS")
+        }
+
+        _ttsBackend.value = TtsBackend.ANDROID_FALLBACK
+        speakWithAndroidTts(text)
     }
 
     /** Stops any currently playing audio immediately. */
@@ -120,6 +157,30 @@ class GoogleCloudTtsManager @Inject constructor(
         stopSpeaking()
         androidTts?.shutdown()
         androidTts = null
+    }
+
+    // ── Voice selection ────────────────────────────────────────────────────
+
+    /**
+     * Returns the voice name matching Buddy's gender and the requested tier/language.
+     * @param chirp  true = Chirp3-HD, false = WaveNet
+     * @param hebrew true = Hebrew voice, false = English voice
+     */
+    private fun buddyVoice(chirp: Boolean, hebrew: Boolean): String {
+        val isBoy = keyManager.getKey(AppConfig.PREF_BUDDY_GENDER) == AppConfig.BUDDY_GENDER_BOY
+        return if (chirp) {
+            if (hebrew) {
+                if (isBoy) VOICE_HE_BOY_CHIRP else VOICE_HE_GIRL_CHIRP
+            } else {
+                if (isBoy) VOICE_EN_BOY_CHIRP else VOICE_EN_GIRL_CHIRP
+            }
+        } else {
+            if (hebrew) {
+                if (isBoy) VOICE_HE_BOY_WAVENET else VOICE_HE_GIRL_WAVENET
+            } else {
+                if (isBoy) VOICE_EN_BOY_WAVENET else VOICE_EN_GIRL_WAVENET
+            }
+        }
     }
 
     // ── Text cleaning ──────────────────────────────────────────────────────
@@ -146,11 +207,15 @@ class GoogleCloudTtsManager @Inject constructor(
     // ── SSML building ──────────────────────────────────────────────────────
 
     /**
-     * Splits text into Hebrew/English segments and wraps each in SSML <lang> tags
-     * so the Hebrew WaveNet voice pronounces Hebrew correctly and switches to
-     * English phonetics for English words — all in one API call, no choppy gaps.
+     * Splits text into Hebrew/English segments.
+     *
+     * Hebrew segments: no wrapper — Google silences Semitic `<lang>` tags.
+     * English segments: `<voice name="enVoiceName">...</voice>` — a **native English speaker**
+     *   pronounces the English words, which is correct for a kids' English-teaching app.
+     *
+     * @param enVoiceName  The English voice name to use (must match tier of the primary voice).
      */
-    private fun buildSsml(text: String): String {
+    private fun buildSsml(text: String, enVoiceName: String): String {
         data class Segment(val text: String, val isHebrew: Boolean)
 
         val segments = mutableListOf<Segment>()
@@ -166,8 +231,7 @@ class GoogleCloudTtsManager @Inject constructor(
         }
 
         for (word in words) {
-            val hebrewCount = word.count { it in HEBREW_RANGE }
-            val isHebrew = hebrewCount > 0
+            val isHebrew = word.any { it in HEBREW_RANGE }
             if (currentIsHebrew == null) currentIsHebrew = isHebrew
             if (isHebrew != currentIsHebrew) flush()
             currentIsHebrew = isHebrew
@@ -175,28 +239,24 @@ class GoogleCloudTtsManager @Inject constructor(
         }
         flush()
 
-        // Single-language text — no SSML needed
+        // Single-language text
         if (segments.size == 1) {
             return if (segments[0].isHebrew) {
-                // Hebrew primary voice: no <lang> wrapper — Semitic languages don't support
-                // the <lang> tag and produce silence. Let the voice speak natively.
                 "<speak>${segments[0].text}</speak>"
             } else {
-                "<speak><lang xml:lang=\"$LANG_EN\">${segments[0].text}</lang></speak>"
+                "<speak><voice name=\"$enVoiceName\">${segments[0].text}</voice></speak>"
             }
         }
 
-        // Mixed Hebrew+English: wrap only English segments in <lang en-US>.
-        // Hebrew segments have NO <lang> tag — the primary he-IL voice already
-        // handles Hebrew natively. Adding <lang he-IL> causes silence (Google limitation).
+        // Mixed: Hebrew bare, English wrapped in <voice> for native pronunciation
         val sb = StringBuilder("<speak>")
         for (seg in segments) {
             if (seg.isHebrew) {
                 sb.append(seg.text)
             } else {
-                sb.append("<lang xml:lang=\"$LANG_EN\">")
+                sb.append("<voice name=\"$enVoiceName\">")
                 sb.append(seg.text)
-                sb.append("</lang>")
+                sb.append("</voice>")
             }
             sb.append(" ")
         }
@@ -206,51 +266,52 @@ class GoogleCloudTtsManager @Inject constructor(
 
     // ── Google Cloud TTS ───────────────────────────────────────────────────
 
-    /** Returns the Hebrew WaveNet voice name matching Buddy's configured gender. */
-    private fun buddyHeVoice(): String {
-        val gender = keyManager.getKey(com.itsikh.buddy.AppConfig.PREF_BUDDY_GENDER)
-        return if (gender == com.itsikh.buddy.AppConfig.BUDDY_GENDER_BOY) VOICE_HE_BOY else VOICE_HE_GIRL
-    }
+    /**
+     * Synthesizes [text] using [heVoiceName] as the primary Hebrew voice and
+     * [enVoiceName] for English segments via SSML `<voice>` tags.
+     */
+    private suspend fun synthesize(
+        apiKey: String,
+        text: String,
+        heVoiceName: String,
+        enVoiceName: String
+    ): ByteArray = withContext(Dispatchers.IO) {
+        val ssml = buildSsml(text, enVoiceName)
+        AppLogger.d(TAG, "SSML [$heVoiceName]: $ssml")
 
-    private suspend fun synthesizeWithSsml(apiKey: String, text: String): ByteArray =
-        withContext(Dispatchers.IO) {
-            val ssml = buildSsml(text)
-            AppLogger.d(TAG, "SSML: $ssml")
-
-            // Primary voice is Hebrew — SSML <lang> tags handle English segments
-            val requestBody = mapOf(
-                "input"       to mapOf("ssml" to ssml),
-                "voice"       to mapOf(
-                    "languageCode" to LANG_HE,
-                    "name"         to buddyHeVoice()
-                ),
-                "audioConfig" to mapOf(
-                    "audioEncoding" to "MP3",
-                    "speakingRate"  to 0.9,
-                    "pitch"         to 0.0
-                )
+        val requestBody = mapOf(
+            "input"       to mapOf("ssml" to ssml),
+            "voice"       to mapOf(
+                "languageCode" to LANG_HE,
+                "name"         to heVoiceName
+            ),
+            "audioConfig" to mapOf(
+                "audioEncoding" to "MP3",
+                "speakingRate"  to 0.9,
+                "pitch"         to 2.0   // +2 semitones: warmer, friendlier for kids
             )
+        )
 
-            val request = Request.Builder()
-                .url("$TTS_URL?key=$apiKey")
-                .post(gson.toJson(requestBody).toRequestBody(JSON))
-                .build()
+        val request = Request.Builder()
+            .url("$TTS_URL?key=$apiKey")
+            .post(gson.toJson(requestBody).toRequestBody(JSON))
+            .build()
 
-            okHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw IllegalStateException("TTS API error ${response.code}: ${response.body?.string()}")
-                }
-                val responseJson = response.body?.string()
-                    ?: throw IllegalStateException("Empty TTS response")
-
-                @Suppress("UNCHECKED_CAST")
-                val parsed = gson.fromJson(responseJson, Map::class.java) as Map<String, Any>
-                val encoded = parsed["audioContent"] as? String
-                    ?: throw IllegalStateException("No audioContent in response")
-
-                Base64.decode(encoded, Base64.DEFAULT)
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("TTS API error ${response.code}: ${response.body?.string()}")
             }
+            val responseJson = response.body?.string()
+                ?: throw IllegalStateException("Empty TTS response")
+
+            @Suppress("UNCHECKED_CAST")
+            val parsed = gson.fromJson(responseJson, Map::class.java) as Map<String, Any>
+            val encoded = parsed["audioContent"] as? String
+                ?: throw IllegalStateException("No audioContent in response")
+
+            Base64.decode(encoded, Base64.DEFAULT)
         }
+    }
 
     // ── Android TTS fallback ───────────────────────────────────────────────
 
@@ -311,7 +372,9 @@ class GoogleCloudTtsManager @Inject constructor(
                     tempFile.delete()
                     currentPlayer.compareAndSet(mp, null)
                     if (continuation.isActive) {
-                        continuation.resumeWithException(IllegalStateException("MediaPlayer error $what/$extra"))
+                        continuation.resumeWithException(
+                            IllegalStateException("MediaPlayer error $what/$extra")
+                        )
                     }
                     true
                 }

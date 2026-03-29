@@ -576,14 +576,16 @@ private fun NoApiKeyBanner(onOpenSettings: () -> Unit) {
 @Composable
 private fun AdminModelStrip(aiModel: String, ttsBackend: com.itsikh.buddy.voice.TtsBackend) {
     val ttsLabel = when (ttsBackend) {
-        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD    -> "Google Cloud TTS ✓"
-        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK -> "Android TTS ⚠ (fallback)"
-        com.itsikh.buddy.voice.TtsBackend.UNKNOWN          -> "TTS: not used yet"
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD_CHIRP   -> "Chirp3-HD ✓"
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD_WAVENET -> "WaveNet ✓"
+        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK     -> "Android TTS ⚠ (fallback)"
+        com.itsikh.buddy.voice.TtsBackend.UNKNOWN               -> "TTS: not used yet"
     }
     val ttsColor = when (ttsBackend) {
-        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD     -> MaterialTheme.colorScheme.tertiary
-        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK -> MaterialTheme.colorScheme.error
-        com.itsikh.buddy.voice.TtsBackend.UNKNOWN           -> MaterialTheme.colorScheme.onSurfaceVariant
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD_CHIRP   -> MaterialTheme.colorScheme.tertiary
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD_WAVENET -> MaterialTheme.colorScheme.tertiary
+        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK     -> MaterialTheme.colorScheme.error
+        com.itsikh.buddy.voice.TtsBackend.UNKNOWN               -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Surface(
         color    = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),

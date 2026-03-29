@@ -195,10 +195,12 @@ fun SettingsScreen(
         ) {
             val activeProvider = driveUiState.aiDefaultProvider
             val ttsVoice = if (buddyGender == AppConfig.BUDDY_GENDER_GIRL) "he-IL-Wavenet-A" else "he-IL-Wavenet-B"
+            val ttsChirpVoice  = if (buddyGender == AppConfig.BUDDY_GENDER_BOY) "he-IL-Chirp3-HD-Puck" else "he-IL-Chirp3-HD-Aoede"
             val ttsActive = when (ttsBackend) {
-                TtsBackend.GOOGLE_CLOUD     -> "$ttsVoice (Google Cloud)"
-                TtsBackend.ANDROID_FALLBACK -> "Android TTS (he-IL) [fallback]"
-                TtsBackend.UNKNOWN          -> "$ttsVoice (not yet spoken)"
+                TtsBackend.GOOGLE_CLOUD_CHIRP   -> "$ttsChirpVoice (Chirp3-HD)"
+                TtsBackend.GOOGLE_CLOUD_WAVENET -> "$ttsVoice (WaveNet)"
+                TtsBackend.ANDROID_FALLBACK     -> "Android TTS (he-IL) [fallback]"
+                TtsBackend.UNKNOWN              -> "$ttsChirpVoice (not yet spoken)"
             }
             val modelDebugInfo = listOf(
                 "AI provider" to if (activeProvider == AppConfig.AI_PROVIDER_CLAUDE) "Claude (primary)" else "Gemini (primary)",
