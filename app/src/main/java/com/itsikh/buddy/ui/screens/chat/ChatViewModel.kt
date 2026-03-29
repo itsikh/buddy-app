@@ -78,6 +78,7 @@ class ChatViewModel @Inject constructor(
 
     private var currentSessionLog: SessionLog? = null
     private var sessionStartTime: Long = 0L
+    private var speakingJob: Job? = null
     private var turnCount: Int = 0
     private var newWordsThisSession: Int = 0
     private var correctionsThisSession: Int = 0
@@ -176,7 +177,20 @@ class ChatViewModel @Inject constructor(
     }
 
     fun switchMode(mode: ChatMode) {
-        _uiState.update { it.copy(mode = mode) }
+        if (_uiState.value.mode == mode) return
+        // Stop any ongoing speech immediately
+        speakingJob?.cancel()
+        speakingJob = null
+        ttsManager.stopSpeaking()
+        // Reset and restart fresh session in the new mode
+        _uiState.update { it.copy(
+            mode            = mode,
+            messages        = emptyList(),
+            isSessionActive = false,
+            voiceState      = VoiceState.IDLE,
+            error           = null
+        )}
+        startSession(mode)
     }
 
     /** Called when push-to-talk button is pressed down. */
@@ -225,6 +239,8 @@ class ChatViewModel @Inject constructor(
 
     /** Immediately stops Buddy speaking and returns to IDLE. */
     fun stopSpeaking() {
+        speakingJob?.cancel()
+        speakingJob = null
         ttsManager.stopSpeaking()
         _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
     }
@@ -284,8 +300,11 @@ class ChatViewModel @Inject constructor(
 
         // TTS handles language detection internally via SSML <lang> tags
         _uiState.update { it.copy(voiceState = VoiceState.SPEAKING) }
-        ttsManager.speak(text)
-        _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
+        speakingJob = viewModelScope.launch {
+            ttsManager.speak(text)
+            _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
+        }
+        speakingJob?.join()
     }
 
     /** Called when the user leaves the chat screen or explicitly ends the session. */
