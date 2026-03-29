@@ -19,6 +19,8 @@ import com.itsikh.buddy.logging.LogLevel
 import com.itsikh.buddy.security.SecureKeyManager
 import com.itsikh.buddy.update.AppUpdateManager
 import com.itsikh.buddy.update.UpdateInfo
+import com.itsikh.buddy.voice.GoogleCloudTtsManager
+import com.itsikh.buddy.voice.TtsBackend
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +71,7 @@ class SettingsViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val memoryRepository: MemoryRepository,
     private val vocabularyRepository: VocabularyRepository,
+    private val ttsManager: GoogleCloudTtsManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -392,6 +395,10 @@ class SettingsViewModel @Inject constructor(
     val hasGeminiKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API)
     val hasClaudeKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API)
     val hasGoogleTtsKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GOOGLE_TTS)
+
+    /** Actual TTS backend used in the last speak() call — reflects real runtime status. */
+    val ttsBackend: StateFlow<TtsBackend> = ttsManager.ttsBackend
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TtsBackend.UNKNOWN)
 
     fun getBuddyGender(): String =
         secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL

@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.BuildConfig
+import com.itsikh.buddy.voice.TtsBackend
 import com.itsikh.buddy.security.ClearDataConfirmationDialog
 import com.itsikh.buddy.ui.components.SectionHeader
 import com.itsikh.buddy.ui.components.SettingsScaffold
@@ -119,6 +120,7 @@ fun SettingsScreen(
     val driveUiState      by viewModel.driveUiState.collectAsState()
     val childProfileState  by viewModel.childProfileState.collectAsState()
     val clearMemoryState   by viewModel.clearMemoryState.collectAsState()
+    val ttsBackend         by viewModel.ttsBackend.collectAsState()
 
     // SAF launchers — CreateDocument shows all providers including Google Drive
     val exportLauncher = rememberLauncherForActivityResult(
@@ -189,13 +191,17 @@ fun SettingsScreen(
         ) {
             val activeProvider = driveUiState.aiDefaultProvider
             val ttsVoice = if (buddyGender == AppConfig.BUDDY_GENDER_GIRL) "he-IL-Wavenet-A" else "he-IL-Wavenet-B"
+            val ttsActive = when (ttsBackend) {
+                TtsBackend.GOOGLE_CLOUD     -> "$ttsVoice (Google Cloud)"
+                TtsBackend.ANDROID_FALLBACK -> "Android TTS (he-IL) [fallback]"
+                TtsBackend.UNKNOWN          -> "$ttsVoice (not yet spoken)"
+            }
             val modelDebugInfo = listOf(
                 "AI provider" to if (activeProvider == AppConfig.AI_PROVIDER_CLAUDE) "Claude (primary)" else "Gemini (primary)",
                 "Gemini chat" to "gemini-2.0-flash",
                 "Claude chat" to "claude-haiku-4-5-20251001",
                 "Claude analysis" to "claude-sonnet-4-6",
-                "TTS voice" to ttsVoice,
-                "TTS fallback" to "Android TTS (he-IL)",
+                "TTS active" to ttsActive,
                 "Gemini key" to if (viewModel.hasGeminiKey) "✓ set" else "✗ missing",
                 "Claude key" to if (viewModel.hasClaudeKey) "✓ set" else "✗ missing",
                 "Google TTS key" to if (viewModel.hasGoogleTtsKey) "✓ set" else "✗ missing"

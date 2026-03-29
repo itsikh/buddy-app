@@ -26,6 +26,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+enum class TtsBackend { UNKNOWN, GOOGLE_CLOUD, ANDROID_FALLBACK }
 
 @Singleton
 class GoogleCloudTtsManager @Inject constructor(
@@ -52,6 +57,10 @@ class GoogleCloudTtsManager @Inject constructor(
     }
 
     private val currentPlayer = AtomicReference<MediaPlayer?>(null)
+
+    private val _ttsBackend = MutableStateFlow(TtsBackend.UNKNOWN)
+    /** The backend actually used for the most recent speak() call. */
+    val ttsBackend: StateFlow<TtsBackend> = _ttsBackend.asStateFlow()
 
     // Android built-in TTS — fallback when no Google Cloud key is set.
     private var androidTts: TextToSpeech? = null
@@ -82,15 +91,18 @@ class GoogleCloudTtsManager @Inject constructor(
         val apiKey = keyManager.getKey(AppConfig.KEY_GOOGLE_TTS)
         if (apiKey.isNullOrBlank()) {
             AppLogger.d(TAG, "No Google Cloud TTS key — using Android TTS fallback")
+            _ttsBackend.value = TtsBackend.ANDROID_FALLBACK
             speakWithAndroidTts(text)
             return
         }
 
         try {
             val audioData = synthesizeWithSsml(apiKey, text)
+            _ttsBackend.value = TtsBackend.GOOGLE_CLOUD
             playAudio(audioData)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Google TTS failed: ${e.message} — falling back to Android TTS")
+            _ttsBackend.value = TtsBackend.ANDROID_FALLBACK
             speakWithAndroidTts(text)
         }
     }

@@ -16,7 +16,9 @@ import com.itsikh.buddy.gamification.BadgeEvaluator
 import com.itsikh.buddy.gamification.XpManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.security.SecureKeyManager
+import com.itsikh.buddy.logging.DebugSettings
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
+import com.itsikh.buddy.voice.TtsBackend
 import android.speech.SpeechRecognizer
 import com.itsikh.buddy.voice.SpeechRecognitionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +40,9 @@ data class ChatUiState(
     val error: String?                 = null,
     val isSessionActive: Boolean       = false,
     val noApiKey: Boolean              = false,        // true when no AI provider key is configured
+    val adminMode: Boolean             = false,
+    val ttsBackend: TtsBackend         = TtsBackend.UNKNOWN,
+    val activeAiModel: String          = "",
 )
 
 enum class VoiceState {
@@ -60,7 +65,8 @@ class ChatViewModel @Inject constructor(
     private val sttManager: SpeechRecognitionManager,
     private val xpManager: XpManager,
     private val badgeEvaluator: BadgeEvaluator,
-    private val workManager: WorkManager
+    private val workManager: WorkManager,
+    private val debugSettings: DebugSettings
 ) : ViewModel() {
 
     companion object {
@@ -83,6 +89,33 @@ class ChatViewModel @Inject constructor(
 
     init {
         loadProfile()
+        collectAdminState()
+    }
+
+    private fun collectAdminState() {
+        val geminiKey = secureKeyManager.getKey(AppConfig.KEY_GEMINI_API)
+        val claudeKey = secureKeyManager.getKey(AppConfig.KEY_CLAUDE_API)
+        val defaultProvider = secureKeyManager.getKey(AppConfig.PREF_AI_DEFAULT_PROVIDER)
+            ?: AppConfig.AI_PROVIDER_GEMINI
+        val activeModel = when {
+            defaultProvider == AppConfig.AI_PROVIDER_CLAUDE && !claudeKey.isNullOrBlank() ->
+                "claude-haiku-4-5-20251001"
+            !geminiKey.isNullOrBlank() -> "gemini-2.0-flash"
+            !claudeKey.isNullOrBlank() -> "claude-haiku-4-5-20251001"
+            else -> "no key"
+        }
+        _uiState.update { it.copy(activeAiModel = activeModel) }
+
+        viewModelScope.launch {
+            debugSettings.adminMode.collect { admin ->
+                _uiState.update { it.copy(adminMode = admin) }
+            }
+        }
+        viewModelScope.launch {
+            ttsManager.ttsBackend.collect { backend ->
+                _uiState.update { it.copy(ttsBackend = backend) }
+            }
+        }
     }
 
     private fun loadProfile() {

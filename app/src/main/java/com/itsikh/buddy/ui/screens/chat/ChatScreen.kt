@@ -137,6 +137,14 @@ fun ChatScreen(
                 NoApiKeyBanner(onOpenSettings = onOpenSettings)
             }
 
+            // ── Admin: active model strip ────────────────────────────────
+            AnimatedVisibility(visible = uiState.adminMode) {
+                AdminModelStrip(
+                    aiModel    = uiState.activeAiModel,
+                    ttsBackend = uiState.ttsBackend
+                )
+            }
+
             // ── Conversational face area ─────────────────────────────────
             ConversationArea(
                 messages     = uiState.messages,
@@ -560,6 +568,46 @@ private fun NoApiKeyBanner(onOpenSettings: () -> Unit) {
                     Text("הגדרות", fontSize = 12.sp)
                 }
             }
+        }
+    }
+}
+
+// ── Admin model info strip ─────────────────────────────────────────────────
+@Composable
+private fun AdminModelStrip(aiModel: String, ttsBackend: com.itsikh.buddy.voice.TtsBackend) {
+    val ttsLabel = when (ttsBackend) {
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD    -> "Google Cloud TTS ✓"
+        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK -> "Android TTS ⚠ (fallback)"
+        com.itsikh.buddy.voice.TtsBackend.UNKNOWN          -> "TTS: not used yet"
+    }
+    val ttsColor = when (ttsBackend) {
+        com.itsikh.buddy.voice.TtsBackend.GOOGLE_CLOUD     -> MaterialTheme.colorScheme.tertiary
+        com.itsikh.buddy.voice.TtsBackend.ANDROID_FALLBACK -> MaterialTheme.colorScheme.error
+        com.itsikh.buddy.voice.TtsBackend.UNKNOWN           -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        color    = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier              = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Text("🛠", fontSize = 11.sp)
+            Text(
+                text     = "AI: $aiModel",
+                fontSize = 10.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color    = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text("·", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text     = ttsLabel,
+                fontSize = 10.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color    = ttsColor
+            )
         }
     }
 }
