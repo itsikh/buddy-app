@@ -13,12 +13,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ProfileSetupUiState(
-    val name: String         = "",
-    val ageText: String      = "",
-    val gender: String       = "BOY",   // "BOY" or "GIRL"
-    val nameError: String?   = null,
-    val ageError: String?    = null,
-    val isSaving: Boolean    = false,
+    val name: String          = "",
+    val namePhonetic: String  = "",
+    val ageText: String       = "",
+    val gender: String        = "BOY",   // "BOY" or "GIRL"
+    val nameError: String?    = null,
+    val ageError: String?     = null,
+    val isSaving: Boolean     = false,
     val profileSaved: Boolean = false
 )
 
@@ -32,6 +33,10 @@ class ProfileSetupViewModel @Inject constructor(
 
     fun onNameChanged(name: String) {
         _uiState.update { it.copy(name = name, nameError = null) }
+    }
+
+    fun onNamePhoneticChanged(namePhonetic: String) {
+        _uiState.update { it.copy(namePhonetic = namePhonetic) }
     }
 
     fun onAgeChanged(ageText: String) {
@@ -62,6 +67,7 @@ class ProfileSetupViewModel @Inject constructor(
 
             val profile = ChildProfile(
                 displayName        = name,
+                namePhonetic       = _uiState.value.namePhonetic.trim(),
                 age                = age!!,
                 gender             = _uiState.value.gender,
                 onboardingComplete  = true,

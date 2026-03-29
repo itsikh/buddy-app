@@ -62,6 +62,18 @@ fun ProfileSetupScreen(
             supportingText = uiState.nameError?.let { { Text(it) } }
         )
 
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value          = uiState.namePhonetic,
+            onValueChange  = viewModel::onNamePhoneticChanged,
+            label          = { Text("שם באנגלית (לבטא נכון)") },
+            placeholder    = { Text("e.g. Yotam, Noa") },
+            supportingText = { Text("אופציונלי — עוזר ל-AI לבטא את השם נכון") },
+            singleLine     = true,
+            modifier       = Modifier.fillMaxWidth()
+        )
+
         Spacer(Modifier.height(16.dp))
 
         OutlinedTextField(
