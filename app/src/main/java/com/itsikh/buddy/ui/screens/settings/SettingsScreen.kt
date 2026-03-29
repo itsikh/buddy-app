@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.BuildConfig
+import com.itsikh.buddy.security.ClearDataConfirmationDialog
 import com.itsikh.buddy.ui.components.SectionHeader
 import com.itsikh.buddy.ui.components.SettingsScaffold
 import com.itsikh.buddy.ui.screens.bugreport.ReportMode
@@ -116,7 +117,8 @@ fun SettingsScreen(
     val exportState       by viewModel.exportState.collectAsState()
     val restoreState      by viewModel.restoreState.collectAsState()
     val driveUiState      by viewModel.driveUiState.collectAsState()
-    val childProfileState by viewModel.childProfileState.collectAsState()
+    val childProfileState  by viewModel.childProfileState.collectAsState()
+    val clearMemoryState   by viewModel.clearMemoryState.collectAsState()
 
     // SAF launchers — CreateDocument shows all providers including Google Drive
     val exportLauncher = rememberLauncherForActivityResult(
@@ -149,8 +151,9 @@ fun SettingsScreen(
     var githubToken           by remember { mutableStateOf("") }
     var tokenVisible          by remember { mutableStateOf(false) }
     var hasToken              by remember { mutableStateOf(viewModel.hasGitHubToken) }
-    var showRestoreDialog     by remember { mutableStateOf(false) }
-    var showClearLogsDialog   by remember { mutableStateOf(false) }
+    var showRestoreDialog      by remember { mutableStateOf(false) }
+    var showClearLogsDialog    by remember { mutableStateOf(false) }
+    var showClearMemoryDialog  by remember { mutableStateOf(false) }
     var logsCleared           by remember { mutableStateOf(false) }
 
     // Buddy API key local state
@@ -203,7 +206,16 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value         = childProfileState.name,
                             onValueChange = viewModel::onProfileNameChanged,
-                            label         = { Text("שם הילד") },
+                            label         = { Text("שם הילד (עברית)") },
+                            singleLine    = true,
+                            modifier      = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value         = childProfileState.namePhonetic,
+                            onValueChange = viewModel::onProfileNamePhoneticChanged,
+                            label         = { Text("שם באנגלית (איך לבטא)") },
+                            placeholder   = { Text("e.g. Yotam, Noa, Tal") },
+                            supportingText = { Text("ישמש את ה-AI לבטא את השם נכון באנגלית") },
                             singleLine    = true,
                             modifier      = Modifier.fillMaxWidth()
                         )

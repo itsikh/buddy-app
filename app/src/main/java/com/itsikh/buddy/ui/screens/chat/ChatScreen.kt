@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -419,17 +420,16 @@ private fun BuddySpeechBubble(text: String, modifier: Modifier = Modifier) {
             tonalElevation = 2.dp,
             modifier    = modifier.fillMaxWidth()
         ) {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                Text(
+            Text(
                     text     = text,
                     style    = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize   = 18.sp,
-                        lineHeight = 26.sp
+                        fontSize      = 18.sp,
+                        lineHeight    = 26.sp,
+                        textDirection = TextDirection.Content
                     ),
                     color    = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
                 )
-            }
         }
     }
 }
@@ -511,7 +511,9 @@ private fun UserEcho(text: String, partial: Boolean, modifier: Modifier = Modifi
                 ) {
                     Text(
                         text  = text,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            textDirection = TextDirection.Content
+                        ),
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     if (partial) {

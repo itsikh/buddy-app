@@ -26,6 +26,13 @@ data class ChildProfile(
     /** "BOY" or "GIRL" — used for gender-correct Hebrew grammar in AI responses. */
     val gender: String = "BOY",
 
+    /**
+     * Child's name in English phonetics (e.g. "Yotam" for יותם).
+     * Used by Google Cloud TTS so the name is pronounced correctly in English segments,
+     * and included in the AI prompt to guide proper English pronunciation.
+     */
+    val namePhonetic: String = "",
+
     /** Overall CEFR level — updated when all skill areas advance. */
     val cefrLevel: String = "A1",
 

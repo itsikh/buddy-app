@@ -91,7 +91,7 @@ class AiRouter @Inject constructor(
         // Gemini fallback for structured tasks
         if (!geminiKey.isNullOrBlank()) {
             val model = com.google.ai.client.generativeai.GenerativeModel(
-                modelName = "gemini-2.0-flash-exp",
+                modelName = "gemini-2.0-flash",
                 apiKey    = geminiKey,
                 systemInstruction = com.google.ai.client.generativeai.type.content { text(systemPrompt) }
             )

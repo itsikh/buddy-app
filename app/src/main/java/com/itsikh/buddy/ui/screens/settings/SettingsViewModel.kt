@@ -8,7 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.bugreport.GitHubIssuesClient
+import com.itsikh.buddy.data.repository.ConversationRepository
+import com.itsikh.buddy.data.repository.MemoryRepository
 import com.itsikh.buddy.data.repository.ProfileRepository
+import com.itsikh.buddy.data.repository.VocabularyRepository
 import com.itsikh.buddy.drive.GoogleDriveManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.logging.DebugSettings
@@ -63,16 +66,20 @@ class SettingsViewModel @Inject constructor(
     private val updateManager: AppUpdateManager,
     private val driveManager: GoogleDriveManager,
     private val profileRepository: ProfileRepository,
+    private val conversationRepository: ConversationRepository,
+    private val memoryRepository: MemoryRepository,
+    private val vocabularyRepository: VocabularyRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     // ── Child profile ─────────────────────────────────────────────────────────
 
     data class ChildProfileState(
-        val name: String   = "",
-        val ageText: String = "",
-        val gender: String = "BOY",
-        val saved: Boolean = false
+        val name: String          = "",
+        val namePhonetic: String  = "",
+        val ageText: String       = "",
+        val gender: String        = "BOY",
+        val saved: Boolean        = false
     )
 
     private val _childProfileState = MutableStateFlow(ChildProfileState())
@@ -84,9 +91,10 @@ class SettingsViewModel @Inject constructor(
             if (profile != null) {
                 _childProfileState.update {
                     it.copy(
-                        name    = profile.displayName,
-                        ageText = profile.age.toString(),
-                        gender  = profile.gender
+                        name          = profile.displayName,
+                        namePhonetic  = profile.namePhonetic,
+                        ageText       = profile.age.toString(),
+                        gender        = profile.gender
                     )
                 }
             }
@@ -95,6 +103,10 @@ class SettingsViewModel @Inject constructor(
 
     fun onProfileNameChanged(name: String) {
         _childProfileState.update { it.copy(name = name, saved = false) }
+    }
+
+    fun onProfileNamePhoneticChanged(namePhonetic: String) {
+        _childProfileState.update { it.copy(namePhonetic = namePhonetic, saved = false) }
     }
 
     fun onProfileAgeChanged(ageText: String) {
@@ -112,13 +124,46 @@ class SettingsViewModel @Inject constructor(
             val existing = profileRepository.getProfile() ?: return@launch
             profileRepository.saveProfile(
                 existing.copy(
-                    displayName = state.name.trim(),
-                    age         = age,
-                    gender      = state.gender
+                    displayName  = state.name.trim(),
+                    namePhonetic = state.namePhonetic.trim(),
+                    age          = age,
+                    gender       = state.gender
                 )
             )
             _childProfileState.update { it.copy(saved = true) }
         }
+    }
+
+    // ── Clear AI Memory ───────────────────────────────────────────────────────
+
+    sealed class ClearMemoryState {
+        object Idle    : ClearMemoryState()
+        object Cleared : ClearMemoryState()
+        data class Error(val message: String) : ClearMemoryState()
+    }
+
+    private val _clearMemoryState = MutableStateFlow<ClearMemoryState>(ClearMemoryState.Idle)
+    val clearMemoryState: StateFlow<ClearMemoryState> = _clearMemoryState.asStateFlow()
+
+    /** Deletes all AI memory facts, conversation history, and vocabulary for the current profile. */
+    fun clearAiMemory() {
+        viewModelScope.launch {
+            try {
+                val profile = profileRepository.getProfile() ?: return@launch
+                memoryRepository.deleteAllForProfile(profile.id)
+                conversationRepository.deleteAllForProfile(profile.id)
+                vocabularyRepository.deleteAllForProfile(profile.id)
+                _clearMemoryState.value = ClearMemoryState.Cleared
+                AppLogger.i(TAG, "AI memory cleared for profile ${profile.id}")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to clear AI memory", e)
+                _clearMemoryState.value = ClearMemoryState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun resetClearMemoryState() {
+        _clearMemoryState.value = ClearMemoryState.Idle
     }
 
     // ── Debug settings state ──────────────────────────────────────────────────

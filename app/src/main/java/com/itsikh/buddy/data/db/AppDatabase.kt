@@ -14,7 +14,7 @@ import com.itsikh.buddy.data.models.*
         VocabularyItem::class,
         SessionLog::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +28,12 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE child_profiles ADD COLUMN gender TEXT NOT NULL DEFAULT 'BOY'")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE child_profiles ADD COLUMN namePhonetic TEXT NOT NULL DEFAULT ''")
             }
         }
     }

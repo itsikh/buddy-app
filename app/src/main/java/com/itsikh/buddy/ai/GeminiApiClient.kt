@@ -11,7 +11,7 @@ import javax.inject.Singleton
 /**
  * Wraps the Google Gemini SDK for conversational AI responses.
  *
- * Uses gemini-2.0-flash-exp by default — fast, cost-effective, strong multilingual support.
+ * Uses gemini-2.0-flash by default — fast, cost-effective, strong multilingual support.
  * The system prompt sets Buddy's personality and is re-applied for each new conversation
  * context (Gemini stateless API).
  *
@@ -23,7 +23,7 @@ class GeminiApiClient @Inject constructor() {
 
     companion object {
         private const val TAG = "GeminiApiClient"
-        private const val MODEL_NAME = "gemini-2.0-flash-exp"
+        private const val MODEL_NAME = "gemini-2.0-flash"
     }
 
     /**
