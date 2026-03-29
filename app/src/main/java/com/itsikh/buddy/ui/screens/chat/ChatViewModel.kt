@@ -16,6 +16,7 @@ import com.itsikh.buddy.gamification.BadgeEvaluator
 import com.itsikh.buddy.gamification.XpManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
+import android.speech.SpeechRecognizer
 import com.itsikh.buddy.voice.SpeechRecognitionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext

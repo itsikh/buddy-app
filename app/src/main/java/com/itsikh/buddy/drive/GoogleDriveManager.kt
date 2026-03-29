@@ -122,6 +122,7 @@ class GoogleDriveManager @Inject constructor(
                 // Profile restore is handled by the caller — return the data
                 AppLogger.i(TAG, "Restore: profile found for ${driveProfile.displayName}")
             }
+            Unit
         }
     }
 
@@ -297,7 +298,7 @@ class GoogleDriveManager @Inject constructor(
      */
     private fun getAccessToken(): String? {
         val account = getSignedInAccount() ?: return null
-        val androidAccount = Account(account.email, "com.google")
+        val androidAccount = Account(account.email ?: return null, "com.google")
         return try {
             GoogleAuthUtil.getToken(
                 context,
