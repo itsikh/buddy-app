@@ -23,7 +23,7 @@ android {
         applicationId = "com.itsikh.buddy"
         minSdk = 26
         targetSdk = 35
-        versionCode = 115
+        versionCode = 1115
         versionName = "0.0.15"
     }
 
