@@ -783,6 +783,51 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        HorizontalDivider()
+
+                        // Clear AI Memory
+                        Text("איפוס זיכרון AI", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "מוחק את כל ההיסטוריה של השיחות, הזיכרון והמילים שנלמדו. Buddy יתחיל מחדש.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        when (val state = clearMemoryState) {
+                            is SettingsViewModel.ClearMemoryState.Cleared -> {
+                                Text(
+                                    "הזיכרון נמחק בהצלחה. Buddy יתחיל שיחה חדשה.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                                TextButton(onClick = { viewModel.resetClearMemoryState() }) {
+                                    Text("אישור")
+                                }
+                            }
+                            is SettingsViewModel.ClearMemoryState.Error -> {
+                                Text(
+                                    "שגיאה: ${state.message}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                TextButton(onClick = { viewModel.resetClearMemoryState() }) {
+                                    Text("סגור")
+                                }
+                            }
+                            else -> {
+                                OutlinedButton(
+                                    onClick = { showClearMemoryDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Icon(Icons.Default.RestoreFromTrash, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("מחק זיכרון AI")
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -813,6 +858,20 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRestoreDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Clear AI Memory confirmation dialog (biometric-gated)
+    if (showClearMemoryDialog) {
+        ClearDataConfirmationDialog(
+            title               = "מחק זיכרון AI",
+            deletedDescription  = "כל השיחות, הזיכרון והמילים שנלמדו",
+            preservedDescription = "מפתחות API, הגדרות ופרופיל הילד",
+            onDismiss  = { showClearMemoryDialog = false },
+            onConfirmed = {
+                showClearMemoryDialog = false
+                viewModel.clearAiMemory()
             }
         )
     }
