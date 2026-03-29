@@ -6,6 +6,7 @@ import com.itsikh.buddy.data.models.ChatMode
 import com.itsikh.buddy.data.repository.ConversationRepository
 import com.itsikh.buddy.data.repository.MemoryRepository
 import com.itsikh.buddy.data.repository.VocabularyRepository
+import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.security.SecureKeyManager
 import java.util.Calendar
 import javax.inject.Inject
@@ -34,6 +35,10 @@ class ConversationManager @Inject constructor(
     private val aiRouter: AiRouter,
     private val secureKeyManager: SecureKeyManager
 ) {
+
+    companion object {
+        private const val TAG = "ConversationManager"
+    }
 
     private fun buddyGender(): String =
         secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL
@@ -68,32 +73,50 @@ class ConversationManager @Inject constructor(
         mode: ChatMode,
         userMessage: String
     ): String {
-        val memoryContext  = memoryRepository.toPromptString(profile.id)
-        val reviewWords    = vocabularyRepository.getDueForReview(profile.id)
-        val sessionGoal    = lessonPlanner.buildSessionGoal(profile, mode)
-        val recentMessages = conversationRepository.getRecentMessages(
-            profile.id, AppConfig.MAX_CONTEXT_TURNS
-        )
+        AppLogger.d(TAG, "sendMessage() for ${profile.displayName}, session=$sessionId")
+        return try {
+            val memoryContext  = memoryRepository.toPromptString(profile.id)
+            val reviewWords    = vocabularyRepository.getDueForReview(profile.id)
+            val sessionGoal    = lessonPlanner.buildSessionGoal(profile, mode)
+            val recentMessages = conversationRepository.getRecentMessages(
+                profile.id, AppConfig.MAX_CONTEXT_TURNS
+            )
 
-        val systemPrompt = systemPromptBuilder.build(
-            profile       = profile,
-            memoryContext = memoryContext,
-            sessionGoal   = sessionGoal,
-            reviewWords   = reviewWords,
-            mode          = mode,
-            buddyGender   = buddyGender()
-        )
+            val systemPrompt = systemPromptBuilder.build(
+                profile       = profile,
+                memoryContext = memoryContext,
+                sessionGoal   = sessionGoal,
+                reviewWords   = reviewWords,
+                mode          = mode,
+                buddyGender   = buddyGender()
+            )
 
-        return aiRouter.chat(
-            systemPrompt = systemPrompt,
-            history      = recentMessages,
-            userMessage  = withGenderReminder(userMessage, profile)
-        )
+            val response = aiRouter.chat(
+                systemPrompt = systemPrompt,
+                history      = recentMessages,
+                userMessage  = withGenderReminder(userMessage, profile)
+            )
+            AppLogger.d(TAG, "sendMessage() response length=${response.length}")
+            response
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "sendMessage() failed: ${e.message}", e)
+            throw e
+        }
     }
 
     // ── Greeting ──────────────────────────────────────────────────────────────
 
     suspend fun generateGreeting(profile: ChildProfile, mode: ChatMode): String {
+        AppLogger.d(TAG, "generateGreeting() for ${profile.displayName}")
+        return try {
+        generateGreetingInternal(profile, mode)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "generateGreeting() failed: ${e.message}", e)
+            throw e
+        }
+    }
+
+    private suspend fun generateGreetingInternal(profile: ChildProfile, mode: ChatMode): String {
         val memoryContext  = memoryRepository.toPromptString(profile.id)
         val reviewWords    = vocabularyRepository.getDueForReview(profile.id)
         val sessionGoal    = lessonPlanner.buildSessionGoal(profile, mode)
@@ -147,11 +170,13 @@ class ConversationManager @Inject constructor(
             mode          = mode
         )
 
-        return aiRouter.chat(
+        val greeting = aiRouter.chat(
             systemPrompt = systemPrompt,
             history      = emptyList(),
             userMessage  = "$genderReminder\n\n$greetingInstruction"
         )
+        AppLogger.d(TAG, "generateGreeting() style=$styleSeed, isFirstEver=$isFirstEver, response length=${greeting.length}")
+        return greeting
     }
 
     private fun buildGreetingInstruction(

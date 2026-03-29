@@ -94,14 +94,24 @@ class GoogleDriveManager @Inject constructor(
                     AppLogger.w(TAG, "Drive sync skipped — no profile")
                 }
 
-            uploadProfile(token, profile)
-            uploadVocabulary(token, profile.id)
-            uploadMemory(token, profile.id)
-            uploadSessions(token, profile.id)
-            uploadDefaultPolicy(token)
+            var failures = 0
+            runCatching { uploadProfile(token, profile) }
+                .onFailure { AppLogger.e(TAG, "Upload profile failed: ${it.message}"); failures++ }
+            runCatching { uploadVocabulary(token, profile.id) }
+                .onFailure { AppLogger.e(TAG, "Upload vocabulary failed: ${it.message}"); failures++ }
+            runCatching { uploadMemory(token, profile.id) }
+                .onFailure { AppLogger.e(TAG, "Upload memory failed: ${it.message}"); failures++ }
+            runCatching { uploadSessions(token, profile.id) }
+                .onFailure { AppLogger.e(TAG, "Upload sessions failed: ${it.message}"); failures++ }
+            runCatching { uploadDefaultPolicy(token) }
+                .onFailure { AppLogger.e(TAG, "Upload policy failed: ${it.message}"); failures++ }
 
-            profileRepository.updateDriveStatus(profile.id, getSignedInAccount()?.email)
-            AppLogger.i(TAG, "Drive sync complete")
+            if (failures == 0) {
+                profileRepository.updateDriveStatus(profile.id, getSignedInAccount()?.email)
+                AppLogger.i(TAG, "Drive sync complete")
+            } else {
+                AppLogger.w(TAG, "Drive sync completed with $failures upload failure(s)")
+            }
         }
     }
 

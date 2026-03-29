@@ -90,13 +90,15 @@ class AiRouter @Inject constructor(
 
         // Gemini fallback for structured tasks
         if (!geminiKey.isNullOrBlank()) {
-            val model = com.google.ai.client.generativeai.GenerativeModel(
-                modelName = "gemini-2.0-flash",
-                apiKey    = geminiKey,
-                systemInstruction = com.google.ai.client.generativeai.type.content { text(systemPrompt) }
-            )
-            return model.generateContent(userPrompt).text
-                ?: throw IllegalStateException("Gemini returned null for analysis")
+            runCatching {
+                val model = com.google.ai.client.generativeai.GenerativeModel(
+                    modelName = "gemini-2.0-flash",
+                    apiKey    = geminiKey,
+                    systemInstruction = com.google.ai.client.generativeai.type.content { text(systemPrompt) }
+                )
+                return model.generateContent(userPrompt).text
+                    ?: throw IllegalStateException("Gemini returned null for analysis")
+            }.onFailure { AppLogger.e(TAG, "Gemini analysis failed: ${it.message}") }
         }
 
         throw IllegalStateException("No API keys configured for analysis tasks.")

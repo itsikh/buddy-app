@@ -42,32 +42,37 @@ class GeminiApiClient @Inject constructor() {
     ): String {
         AppLogger.d(TAG, "Sending chat request, history size=${history.size}")
 
-        val model = GenerativeModel(
-            modelName = MODEL_NAME,
-            apiKey    = apiKey,
-            generationConfig = generationConfig {
-                temperature   = 0.75f
-                topK          = 40
-                topP          = 0.95f
-                maxOutputTokens = 400  // Keep responses concise for voice output
-            },
-            systemInstruction = content { text(systemPrompt) }
-        )
+        return try {
+            val model = GenerativeModel(
+                modelName = MODEL_NAME,
+                apiKey    = apiKey,
+                generationConfig = generationConfig {
+                    temperature   = 0.75f
+                    topK          = 40
+                    topP          = 0.95f
+                    maxOutputTokens = 400  // Keep responses concise for voice output
+                },
+                systemInstruction = content { text(systemPrompt) }
+            )
 
-        // Build chat history (exclude the latest user message — it's sent separately)
-        val chatHistory = history.dropLast(1).map { msg ->
-            content(role = if (msg.role == "user") "user" else "model") {
-                text(msg.text)
+            // Build chat history (exclude the latest user message — it's sent separately)
+            val chatHistory = history.dropLast(1).map { msg ->
+                content(role = if (msg.role == "user") "user" else "model") {
+                    text(msg.text)
+                }
             }
+
+            val chat = model.startChat(history = chatHistory)
+            val response = chat.sendMessage(userMessage)
+
+            val responseText = response.text
+                ?: throw IllegalStateException("Gemini returned null response text")
+
+            AppLogger.d(TAG, "Response received, length=${responseText.length}")
+            responseText.trim()
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Gemini chat failed: ${e.message}", e)
+            throw e
         }
-
-        val chat = model.startChat(history = chatHistory)
-        val response = chat.sendMessage(userMessage)
-
-        val responseText = response.text
-            ?: throw IllegalStateException("Gemini returned null response text")
-
-        AppLogger.d(TAG, "Response received, length=${responseText.length}")
-        return responseText.trim()
     }
 }

@@ -281,46 +281,52 @@ class ChatViewModel @Inject constructor(
 
             newWordsThisSession += extractionResult?.newWords?.size ?: 0
 
-            // Award XP
-            val updatedProfile = profileRepository.updateStreak(profile)
-            sessionXp = xpManager.awardSessionXp(updatedProfile, durationMinutes, newWordsThisSession)
+            var newBadges = emptyList<String>()
+            try {
+                // Award XP
+                val updatedProfile = profileRepository.updateStreak(profile)
+                sessionXp = xpManager.awardSessionXp(updatedProfile, durationMinutes, newWordsThisSession)
 
-            // Evaluate badges
-            val totalSessions   = conversationRepository.totalSessionCount(profile.id)
-            val vocabMastered   = vocabularyRepository.countMastered(profile.id)
-            val newBadges = badgeEvaluator.evaluate(
-                profile          = updatedProfile,
-                alreadyEarned    = earnedBadgeIds,
-                sessionLog       = session,
-                totalSessions    = totalSessions,
-                vocabularyMastered = vocabMastered
-            )
-            earnedBadgeIds.addAll(newBadges)
+                // Evaluate badges
+                val totalSessions = conversationRepository.totalSessionCount(profile.id)
+                val vocabMastered = vocabularyRepository.countMastered(profile.id)
+                newBadges = badgeEvaluator.evaluate(
+                    profile            = updatedProfile,
+                    alreadyEarned      = earnedBadgeIds,
+                    sessionLog         = session,
+                    totalSessions      = totalSessions,
+                    vocabularyMastered = vocabMastered
+                )
+                earnedBadgeIds.addAll(newBadges)
 
-            // Close session record
-            conversationRepository.closeSession(
-                sessionId   = session.id,
-                durationMinutes = durationMinutes,
-                turnCount   = turnCount,
-                newWords    = newWordsThisSession,
-                corrections = correctionsThisSession,
-                summary     = extractionResult?.hebrewSummary,
-                xp          = sessionXp
-            )
+                // Close session record
+                conversationRepository.closeSession(
+                    sessionId       = session.id,
+                    durationMinutes = durationMinutes,
+                    turnCount       = turnCount,
+                    newWords        = newWordsThisSession,
+                    corrections     = correctionsThisSession,
+                    summary         = extractionResult?.hebrewSummary,
+                    xp              = sessionXp
+                )
 
-            // Update vocabulary mastered count on profile
-            profileRepository.recordSessionEnd(profile.id, durationMinutes)
+                // Update vocabulary mastered count on profile
+                profileRepository.recordSessionEnd(profile.id, durationMinutes)
 
-            // Trigger Drive sync
-            DriveSyncWorker.enqueue(workManager)
+                // Trigger Drive sync
+                DriveSyncWorker.enqueue(workManager)
 
-            _uiState.update { it.copy(
-                isSessionActive = false,
-                newBadges       = newBadges,
-                xpToday         = sessionXp
-            )}
-
-            currentSessionLog = null
+                AppLogger.i(TAG, "Session ended: ${durationMinutes}min, ${newWordsThisSession} new words, ${newBadges.size} badges")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error closing session: ${e.message}", e)
+            } finally {
+                _uiState.update { it.copy(
+                    isSessionActive = false,
+                    newBadges       = newBadges,
+                    xpToday         = sessionXp
+                )}
+                currentSessionLog = null
+            }
         }
     }
 

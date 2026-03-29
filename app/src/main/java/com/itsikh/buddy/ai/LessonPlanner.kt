@@ -3,6 +3,7 @@ package com.itsikh.buddy.ai
 import com.itsikh.buddy.data.models.ChildProfile
 import com.itsikh.buddy.data.models.ChatMode
 import com.itsikh.buddy.data.repository.VocabularyRepository
+import com.itsikh.buddy.logging.AppLogger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,28 +19,37 @@ import javax.inject.Singleton
 class LessonPlanner @Inject constructor(
     private val vocabularyRepository: VocabularyRepository
 ) {
+    companion object {
+        private const val TAG = "LessonPlanner"
+    }
 
     /**
      * Returns a concise session goal string to inject into the system prompt.
      * Rotates through grammar targets appropriate for the child's current CEFR level.
      */
     suspend fun buildSessionGoal(profile: ChildProfile, mode: ChatMode): String {
-        val dueWords = vocabularyRepository.getDueForReview(profile.id)
+        AppLogger.d(TAG, "buildSessionGoal() for ${profile.displayName}, level=${profile.speakingLevel}")
+        return try {
+            val dueWords = vocabularyRepository.getDueForReview(profile.id)
 
-        val grammarFocus = getGrammarFocus(profile)
-        val vocabFocus   = if (dueWords.isNotEmpty()) {
-            "Naturally reintroduce these words in conversation: ${dueWords.take(3).joinToString(", ") { it.word }}"
-        } else {
-            "Introduce 1-2 new words appropriate for ${profile.vocabularyLevel} level naturally in the conversation."
-        }
-
-        return buildString {
-            appendLine(grammarFocus)
-            appendLine(vocabFocus)
-            if (mode == ChatMode.FREE_CHAT) {
-                appendLine("Encourage ${profile.displayName} to produce full sentences, not just single words.")
+            val grammarFocus = getGrammarFocus(profile)
+            val vocabFocus   = if (dueWords.isNotEmpty()) {
+                "Naturally reintroduce these words in conversation: ${dueWords.take(3).joinToString(", ") { it.word }}"
+            } else {
+                "Introduce 1-2 new words appropriate for ${profile.vocabularyLevel} level naturally in the conversation."
             }
-        }.trimEnd()
+
+            buildString {
+                appendLine(grammarFocus)
+                appendLine(vocabFocus)
+                if (mode == ChatMode.FREE_CHAT) {
+                    appendLine("Encourage ${profile.displayName} to produce full sentences, not just single words.")
+                }
+            }.trimEnd()
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "buildSessionGoal() failed, using fallback: ${e.message}", e)
+            "Encourage natural conversation at ${profile.displayName}'s comfortable level."
+        }
     }
 
     private fun getGrammarFocus(profile: ChildProfile): String {

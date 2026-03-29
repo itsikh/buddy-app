@@ -163,18 +163,30 @@ class GoogleCloudTtsManager @Inject constructor(
         }
         flush()
 
-        // Single-language text → no SSML needed, keep it simple
+        // Single-language text — no SSML needed
         if (segments.size == 1) {
-            val lang = if (segments[0].isHebrew) LANG_HE else LANG_EN
-            return "<speak><lang xml:lang=\"$lang\">${segments[0].text}</lang></speak>"
+            return if (segments[0].isHebrew) {
+                // Hebrew primary voice: no <lang> wrapper — Semitic languages don't support
+                // the <lang> tag and produce silence. Let the voice speak natively.
+                "<speak>${segments[0].text}</speak>"
+            } else {
+                "<speak><lang xml:lang=\"$LANG_EN\">${segments[0].text}</lang></speak>"
+            }
         }
 
+        // Mixed Hebrew+English: wrap only English segments in <lang en-US>.
+        // Hebrew segments have NO <lang> tag — the primary he-IL voice already
+        // handles Hebrew natively. Adding <lang he-IL> causes silence (Google limitation).
         val sb = StringBuilder("<speak>")
         for (seg in segments) {
-            val lang = if (seg.isHebrew) LANG_HE else LANG_EN
-            sb.append("<lang xml:lang=\"$lang\">")
-            sb.append(seg.text)
-            sb.append("</lang> ")
+            if (seg.isHebrew) {
+                sb.append(seg.text)
+            } else {
+                sb.append("<lang xml:lang=\"$LANG_EN\">")
+                sb.append(seg.text)
+                sb.append("</lang>")
+            }
+            sb.append(" ")
         }
         sb.append("</speak>")
         return sb.toString()
