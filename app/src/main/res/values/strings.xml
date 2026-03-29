@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Buddy</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_consent_title">ברוכים הבאים ל-Buddy!</string>
+    <string name="onboarding_consent_subtitle">חבר אנגלית חכם לילדכם</string>
+    <string name="onboarding_consent_body">Buddy הוא חבר AI שעוזר לילדים ללמוד לדבר ולכתוב אנגלית בשיחה טבעית.\n\nהאפליקציה שומרת את ההתקדמות של ילדך ב-Google Drive שלך בצורה מאובטחת. אנחנו לא שומרים הקלטות קוליות — רק טקסט.</string>
+    <string name="onboarding_consent_agree">אני מסכים/ה — נתחיל!</string>
+
+    <!-- Profile setup -->
+    <string name="profile_setup_title">ספר לי על ילדך</string>
+    <string name="profile_setup_name_hint">שם הילד/ה</string>
+    <string name="profile_setup_age_hint">גיל</string>
+    <string name="profile_setup_start">בואו נתחיל!</string>
+
+    <!-- Chat screen -->
+    <string name="chat_mode_free">שיחה חופשית</string>
+    <string name="chat_mode_story">סיפור</string>
+    <string name="chat_mode_roleplay">משחק תפקידים</string>
+    <string name="chat_hold_to_speak">לחץ והחזק לדיבור</string>
+    <string name="chat_listening">מקשיב…</string>
+    <string name="chat_thinking">Buddy חושב…</string>
+    <string name="chat_speaking">Buddy מדבר…</string>
+    <string name="chat_error_no_api_key">יש להגדיר מפתח API בהגדרות</string>
+    <string name="chat_error_network">בעיית חיבור — נסה שוב</string>
+    <string name="chat_streak_days">ימים ברצף</string>
+
+    <!-- Settings -->
+    <string name="settings_api_keys_title">הגדרות AI</string>
+    <string name="settings_gemini_key_hint">Gemini API Key</string>
+    <string name="settings_claude_key_hint">Claude API Key</string>
+    <string name="settings_google_tts_key_hint">Google Cloud TTS/STT API Key</string>
+    <string name="settings_ai_default_label">מנוע AI ראשי</string>
+    <string name="settings_ai_gemini">Gemini (מומלץ)</string>
+    <string name="settings_ai_claude">Claude</string>
+    <string name="settings_drive_title">Google Drive</string>
+    <string name="settings_drive_sign_in">התחבר עם Google</string>
+    <string name="settings_drive_sign_out">התנתק מ-Google</string>
+    <string name="settings_drive_sync_now">סנכרן עכשיו</string>
+    <string name="settings_drive_last_sync">סנכרון אחרון: %1$s</string>
+    <string name="settings_drive_not_synced">לא סונכרן עדיין</string>
+
+    <!-- Progress dashboard -->
+    <string name="progress_title">התקדמות</string>
+    <string name="progress_cefr_level">רמת אנגלית: %1$s</string>
+    <string name="progress_total_sessions">מפגשים: %1$d</string>
+    <string name="progress_vocabulary_mastered">מילים שנלמדו: %1$d</string>
+
+    <!-- Memory viewer -->
+    <string name="memory_title">מה Buddy זוכר</string>
+    <string name="memory_empty">Buddy עדיין לא למד הרבה — שוחח יותר!</string>
+
+    <!-- Parental controls -->
+    <string name="parental_controls_title">הגדרות הורים</string>
+    <string name="parental_controls_daily_limit">מגבלת זמן יומית (דקות)</string>
+    <string name="parental_controls_reminder_enabled">הפעל תזכורת יומית</string>
+
+    <!-- Vocabulary garden -->
+    <string name="garden_title">גן המילים</string>
+    <string name="garden_empty">התחל לשוחח עם Buddy כדי לטפח מילים!</string>
+
+    <!-- Common -->
+    <string name="save">שמור</string>
+    <string name="cancel">ביטול</string>
+    <string name="back">חזור</string>
+    <string name="loading">טוען…</string>
+</resources>
