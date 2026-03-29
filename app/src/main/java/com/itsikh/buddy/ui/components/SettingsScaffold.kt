@@ -3,6 +3,7 @@ package com.itsikh.buddy.ui.components
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -79,6 +80,7 @@ fun SettingsScaffold(
     onAdminModeToggle: (Boolean) -> Unit,
     onDetailedLoggingToggle: (Boolean) -> Unit,
     onShowBugButtonToggle: (Boolean) -> Unit,
+    debugInfo: List<Pair<String, String>> = emptyList(),
     content: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -152,6 +154,39 @@ fun SettingsScaffold(
                                 checked = showBugButton,
                                 onCheckedChange = { onShowBugButtonToggle(it) }
                             )
+                        }
+
+                        if (debugInfo.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "Active Models",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                debugInfo.forEach { (label, value) ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = value,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

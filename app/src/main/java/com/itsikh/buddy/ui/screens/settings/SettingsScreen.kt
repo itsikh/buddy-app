@@ -187,6 +187,20 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            val activeProvider = driveUiState.aiDefaultProvider
+            val ttsVoice = if (buddyGender == AppConfig.BUDDY_GENDER_GIRL) "he-IL-Wavenet-A" else "he-IL-Wavenet-B"
+            val modelDebugInfo = listOf(
+                "AI provider" to if (activeProvider == AppConfig.AI_PROVIDER_CLAUDE) "Claude (primary)" else "Gemini (primary)",
+                "Gemini chat" to "gemini-2.0-flash",
+                "Claude chat" to "claude-haiku-4-5-20251001",
+                "Claude analysis" to "claude-sonnet-4-6",
+                "TTS voice" to ttsVoice,
+                "TTS fallback" to "Android TTS (he-IL)",
+                "Gemini key" to if (viewModel.hasGeminiKey) "✓ set" else "✗ missing",
+                "Claude key" to if (viewModel.hasClaudeKey) "✓ set" else "✗ missing",
+                "Google TTS key" to if (viewModel.hasGoogleTtsKey) "✓ set" else "✗ missing"
+            )
+
             SettingsScaffold(
                 appName = AppConfig.APP_NAME,
                 versionName = BuildConfig.VERSION_NAME,
@@ -195,7 +209,8 @@ fun SettingsScreen(
                 showBugButton = showBugButton,
                 onAdminModeToggle = { viewModel.setAdminMode(it) },
                 onDetailedLoggingToggle = { viewModel.setDetailedLogging(it) },
-                onShowBugButtonToggle = { viewModel.setShowBugButton(it) }
+                onShowBugButtonToggle = { viewModel.setShowBugButton(it) },
+                debugInfo = modelDebugInfo
             ) {
 
                 // ── Child Profile ─────────────────────────────────────────────
