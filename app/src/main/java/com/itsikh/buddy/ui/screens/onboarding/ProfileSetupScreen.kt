@@ -1,6 +1,8 @@
 package com.itsikh.buddy.ui.screens.onboarding
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,8 +20,7 @@ import com.itsikh.buddy.R
 
 /**
  * Profile setup screen — step 2 of onboarding.
- * Parent enters the child's display name and age.
- * A short voice-based level assessment follows automatically.
+ * Parent enters the child's display name, age, and gender.
  */
 @Composable
 fun ProfileSetupScreen(
@@ -74,6 +75,37 @@ fun ProfileSetupScreen(
             supportingText = uiState.ageError?.let { { Text(it) } }
         )
 
+        Spacer(Modifier.height(24.dp))
+
+        // Gender picker
+        Text(
+            "מי משתמש באפליקציה?",
+            style      = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign  = TextAlign.Center,
+            modifier   = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier              = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            GenderButton(
+                emoji    = "👦",
+                label    = "ילד",
+                selected = uiState.gender == "BOY",
+                onClick  = { viewModel.onGenderChanged("BOY") },
+                modifier = Modifier.weight(1f)
+            )
+            GenderButton(
+                emoji    = "👧",
+                label    = "ילדה",
+                selected = uiState.gender == "GIRL",
+                onClick  = { viewModel.onGenderChanged("GIRL") },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
         Spacer(Modifier.height(32.dp))
 
         Button(
@@ -95,6 +127,38 @@ fun ProfileSetupScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun GenderButton(
+    emoji: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                         else MaterialTheme.colorScheme.surface
+    val contentColor   = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                         else MaterialTheme.colorScheme.onSurface
+    val border         = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                         else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+
+    OutlinedButton(
+        onClick  = onClick,
+        modifier = modifier.height(80.dp),
+        shape    = RoundedCornerShape(16.dp),
+        border   = border,
+        colors   = ButtonDefaults.outlinedButtonColors(
+            containerColor = containerColor,
+            contentColor   = contentColor
+        )
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(emoji, fontSize = 28.sp)
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
     }
 }

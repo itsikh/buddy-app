@@ -55,6 +55,16 @@ object AppConfig {
     const val AI_PROVIDER_GEMINI = "gemini"
     const val AI_PROVIDER_CLAUDE = "claude"
 
+    /**
+     * "GIRL" or "BOY" — Buddy's own voice gender.
+     * Controls both the Hebrew TTS voice (female/male WaveNet) and Buddy's
+     * first-person Hebrew grammar in the system prompt.
+     * Default: GIRL (he-IL-Wavenet-A — warm, friendly female voice).
+     */
+    const val PREF_BUDDY_GENDER = "buddy_gender"
+    const val BUDDY_GENDER_GIRL = "GIRL"
+    const val BUDDY_GENDER_BOY  = "BOY"
+
     // -----------------------------------------------------------------------------------------
     // Google Drive
     // -----------------------------------------------------------------------------------------

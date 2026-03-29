@@ -23,6 +23,9 @@ data class ChildProfile(
 
     val age: Int,
 
+    /** "BOY" or "GIRL" — used for gender-correct Hebrew grammar in AI responses. */
+    val gender: String = "BOY",
+
     /** Overall CEFR level — updated when all skill areas advance. */
     val cefrLevel: String = "A1",
 

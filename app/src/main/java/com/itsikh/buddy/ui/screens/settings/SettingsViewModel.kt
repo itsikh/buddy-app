@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.bugreport.GitHubIssuesClient
+import com.itsikh.buddy.data.repository.ProfileRepository
 import com.itsikh.buddy.drive.GoogleDriveManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.logging.DebugSettings
@@ -61,8 +62,64 @@ class SettingsViewModel @Inject constructor(
     private val secureKeyManager: SecureKeyManager,
     private val updateManager: AppUpdateManager,
     private val driveManager: GoogleDriveManager,
+    private val profileRepository: ProfileRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    // ── Child profile ─────────────────────────────────────────────────────────
+
+    data class ChildProfileState(
+        val name: String   = "",
+        val ageText: String = "",
+        val gender: String = "BOY",
+        val saved: Boolean = false
+    )
+
+    private val _childProfileState = MutableStateFlow(ChildProfileState())
+    val childProfileState: StateFlow<ChildProfileState> = _childProfileState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val profile = profileRepository.getProfile()
+            if (profile != null) {
+                _childProfileState.update {
+                    it.copy(
+                        name    = profile.displayName,
+                        ageText = profile.age.toString(),
+                        gender  = profile.gender
+                    )
+                }
+            }
+        }
+    }
+
+    fun onProfileNameChanged(name: String) {
+        _childProfileState.update { it.copy(name = name, saved = false) }
+    }
+
+    fun onProfileAgeChanged(ageText: String) {
+        _childProfileState.update { it.copy(ageText = ageText, saved = false) }
+    }
+
+    fun onProfileGenderChanged(gender: String) {
+        _childProfileState.update { it.copy(gender = gender, saved = false) }
+    }
+
+    fun saveChildProfile() {
+        val state = _childProfileState.value
+        val age = state.ageText.toIntOrNull() ?: return
+        viewModelScope.launch {
+            val existing = profileRepository.getProfile() ?: return@launch
+            profileRepository.saveProfile(
+                existing.copy(
+                    displayName = state.name.trim(),
+                    age         = age,
+                    gender      = state.gender
+                )
+            )
+            _childProfileState.update { it.copy(saved = true) }
+        }
+    }
 
     // ── Debug settings state ──────────────────────────────────────────────────
 
@@ -290,6 +347,13 @@ class SettingsViewModel @Inject constructor(
     val hasGeminiKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API)
     val hasClaudeKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API)
     val hasGoogleTtsKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GOOGLE_TTS)
+
+    fun getBuddyGender(): String =
+        secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL
+
+    fun setBuddyGender(gender: String) {
+        secureKeyManager.saveKey(AppConfig.PREF_BUDDY_GENDER, gender)
+    }
 
     fun getAiDefaultProvider(): String =
         secureKeyManager.getKey(AppConfig.PREF_AI_DEFAULT_PROVIDER) ?: AppConfig.AI_PROVIDER_GEMINI

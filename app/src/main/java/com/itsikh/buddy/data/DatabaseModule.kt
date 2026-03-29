@@ -18,7 +18,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "buddy_db")
-            .fallbackToDestructiveMigration() // Safe during early development; add migrations before release
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
 
     @Provides fun provideChildProfileDao(db: AppDatabase): ChildProfileDao = db.childProfileDao()

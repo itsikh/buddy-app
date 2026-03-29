@@ -7,6 +7,7 @@ import com.itsikh.buddy.data.models.Message
 import com.itsikh.buddy.data.repository.ConversationRepository
 import com.itsikh.buddy.data.repository.MemoryRepository
 import com.itsikh.buddy.data.repository.VocabularyRepository
+import com.itsikh.buddy.security.SecureKeyManager
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,8 +26,12 @@ class ConversationManager @Inject constructor(
     private val vocabularyRepository: VocabularyRepository,
     private val systemPromptBuilder: SystemPromptBuilder,
     private val lessonPlanner: LessonPlanner,
-    private val aiRouter: AiRouter
+    private val aiRouter: AiRouter,
+    private val secureKeyManager: SecureKeyManager
 ) {
+
+    private fun buddyGender(): String =
+        secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL
 
     /**
      * Sends a user message and returns Buddy's response.
@@ -55,11 +60,12 @@ class ConversationManager @Inject constructor(
 
         // 2. Build system prompt
         val systemPrompt = systemPromptBuilder.build(
-            profile        = profile,
-            memoryContext  = memoryContext,
-            sessionGoal    = sessionGoal,
-            reviewWords    = reviewWords,
-            mode           = mode
+            profile       = profile,
+            memoryContext = memoryContext,
+            sessionGoal   = sessionGoal,
+            reviewWords   = reviewWords,
+            mode          = mode,
+            buddyGender   = buddyGender()
         )
 
         // 3. Call AI with routing + fallback
@@ -78,14 +84,23 @@ class ConversationManager @Inject constructor(
         val memoryContext  = memoryRepository.toPromptString(profile.id)
         val reviewWords    = vocabularyRepository.getDueForReview(profile.id)
         val sessionGoal    = lessonPlanner.buildSessionGoal(profile, mode)
+        val buddy          = buddyGender()
+        val buddyIsBoy     = buddy == AppConfig.BUDDY_GENDER_BOY
+        val friendWord     = if (buddyIsBoy) "החבר" else "החברה"
+        val verbReady      = if (buddyIsBoy) "מוכן"  else "מוכנה"
 
         val systemPrompt = systemPromptBuilder.build(
             profile       = profile,
             memoryContext = memoryContext,
             sessionGoal   = sessionGoal,
             reviewWords   = reviewWords,
-            mode          = mode
+            mode          = mode,
+            buddyGender   = buddy
         )
+
+        val childIsBoy    = profile.gender != "GIRL"
+        val verbTell      = if (childIsBoy) "ספר"  else "ספרי"
+        val verbSay       = if (childIsBoy) "אמור" else "אמרי"
 
         val greetingPrompt = when {
             memoryContext.isNotBlank() -> """
@@ -94,17 +109,19 @@ class ConversationManager @Inject constructor(
                 1. Hebrew welcome back (1 sentence): e.g. "יאללה ${profile.displayName}, כיף שחזרת!"
                 2. English phrase that references something you know about them (short, at their level)
                 3. Hebrew instruction + English prompt for them to say something:
-                   e.g. "עכשיו תגיד לי — say: 'I am happy to be here!'"
+                   e.g. "עכשיו $verbTell לי — say: 'I am happy to be here!'"
                 Keep the whole thing to 3-4 short sentences total.
+                Remember: YOU are ${if (buddyIsBoy) "a boy" else "a girl"} — use the correct Hebrew first-person forms.
             """.trimIndent()
             else -> """
                 Generate a warm bilingual first greeting for ${profile.displayName} (age ${profile.age}).
                 Structure:
-                1. Hebrew intro: "שלום ${profile.displayName}! אני Buddy — החבר האנגלי שלך! 🤖"
+                1. Hebrew intro: "שלום ${profile.displayName}! אני Buddy — $friendWord האנגלי שלך! 🤖"
                 2. Short English self-intro: "My name is Buddy and I love to chat!"
-                3. Hebrew explanation of what you'll do together: "ביחד נדבר אנגלית — זה כיף, מבטיח!"
-                4. Hebrew instruction + English prompt: "עכשיו תגיד לי — say: 'Hello Buddy!'"
+                3. Hebrew explanation: "ביחד נדבר אנגלית — זה כיף, מבטיח! אני $verbReady!"
+                4. Hebrew instruction + English prompt: "עכשיו $verbSay לי — say: 'Hello Buddy!'"
                 Keep it warm, fun, and short. Use emojis.
+                Remember: YOU are ${if (buddyIsBoy) "a boy" else "a girl"} — use the correct Hebrew first-person forms.
             """.trimIndent()
         }
 

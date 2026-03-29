@@ -41,10 +41,12 @@ class GoogleCloudTtsManager @Inject constructor(
 
         // WaveNet voices — primary Hebrew voice since Buddy speaks Hebrew+English mix.
         // SSML <lang> tags switch pronunciation to English for English segments.
-        private const val VOICE_HE  = "he-IL-Wavenet-A"
-        private const val VOICE_EN  = "en-US-Wavenet-F"   // warm female, clear for kids
-        private const val LANG_HE   = "he-IL"
-        private const val LANG_EN   = "en-US"
+        private const val VOICE_HE_GIRL = "he-IL-Wavenet-A"  // warm female — default Buddy voice
+        private const val VOICE_HE_BOY  = "he-IL-Wavenet-B"  // natural male
+        private const val VOICE_EN_GIRL = "en-US-Wavenet-F"  // warm female, clear for kids
+        private const val VOICE_EN_BOY  = "en-US-Wavenet-D"  // friendly male
+        private const val LANG_HE = "he-IL"
+        private const val LANG_EN = "en-US"
 
         private val HEBREW_RANGE = '\u05D0'..'\u05EA'
     }
@@ -180,6 +182,12 @@ class GoogleCloudTtsManager @Inject constructor(
 
     // ── Google Cloud TTS ───────────────────────────────────────────────────
 
+    /** Returns the Hebrew WaveNet voice name matching Buddy's configured gender. */
+    private fun buddyHeVoice(): String {
+        val gender = keyManager.getKey(com.itsikh.buddy.AppConfig.PREF_BUDDY_GENDER)
+        return if (gender == com.itsikh.buddy.AppConfig.BUDDY_GENDER_BOY) VOICE_HE_BOY else VOICE_HE_GIRL
+    }
+
     private suspend fun synthesizeWithSsml(apiKey: String, text: String): ByteArray =
         withContext(Dispatchers.IO) {
             val ssml = buildSsml(text)
@@ -190,7 +198,7 @@ class GoogleCloudTtsManager @Inject constructor(
                 "input"       to mapOf("ssml" to ssml),
                 "voice"       to mapOf(
                     "languageCode" to LANG_HE,
-                    "name"         to VOICE_HE
+                    "name"         to buddyHeVoice()
                 ),
                 "audioConfig" to mapOf(
                     "audioEncoding" to "MP3",

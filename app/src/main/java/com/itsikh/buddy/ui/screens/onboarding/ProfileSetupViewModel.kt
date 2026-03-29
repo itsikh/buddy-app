@@ -15,6 +15,7 @@ import javax.inject.Inject
 data class ProfileSetupUiState(
     val name: String         = "",
     val ageText: String      = "",
+    val gender: String       = "BOY",   // "BOY" or "GIRL"
     val nameError: String?   = null,
     val ageError: String?    = null,
     val isSaving: Boolean    = false,
@@ -35,6 +36,10 @@ class ProfileSetupViewModel @Inject constructor(
 
     fun onAgeChanged(ageText: String) {
         _uiState.update { it.copy(ageText = ageText, ageError = null) }
+    }
+
+    fun onGenderChanged(gender: String) {
+        _uiState.update { it.copy(gender = gender) }
     }
 
     fun saveProfile() {
@@ -58,6 +63,7 @@ class ProfileSetupViewModel @Inject constructor(
             val profile = ChildProfile(
                 displayName        = name,
                 age                = age!!,
+                gender             = _uiState.value.gender,
                 onboardingComplete  = true,
                 parentConsentGiven  = true
             )

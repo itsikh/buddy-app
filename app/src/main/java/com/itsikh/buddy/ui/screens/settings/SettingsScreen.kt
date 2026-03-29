@@ -107,15 +107,16 @@ fun SettingsScreen(
     onOpenGarden: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val adminMode       by viewModel.adminMode.collectAsState()
-    val logLevel        by viewModel.logLevel.collectAsState()
-    val showBugButton   by viewModel.showBugButton.collectAsState()
-    val autoUpdate      by viewModel.autoUpdateEnabled.collectAsState()
-    val autoBackup      by viewModel.autoBackupEnabled.collectAsState()
-    val updateState     by viewModel.updateState.collectAsState()
-    val exportState     by viewModel.exportState.collectAsState()
-    val restoreState    by viewModel.restoreState.collectAsState()
-    val driveUiState    by viewModel.driveUiState.collectAsState()
+    val adminMode         by viewModel.adminMode.collectAsState()
+    val logLevel          by viewModel.logLevel.collectAsState()
+    val showBugButton     by viewModel.showBugButton.collectAsState()
+    val autoUpdate        by viewModel.autoUpdateEnabled.collectAsState()
+    val autoBackup        by viewModel.autoBackupEnabled.collectAsState()
+    val updateState       by viewModel.updateState.collectAsState()
+    val exportState       by viewModel.exportState.collectAsState()
+    val restoreState      by viewModel.restoreState.collectAsState()
+    val driveUiState      by viewModel.driveUiState.collectAsState()
+    val childProfileState by viewModel.childProfileState.collectAsState()
 
     // SAF launchers — CreateDocument shows all providers including Google Drive
     val exportLauncher = rememberLauncherForActivityResult(
@@ -157,6 +158,9 @@ fun SettingsScreen(
     var claudeVisible  by remember { mutableStateOf(false) }
     var ttsVisible     by remember { mutableStateOf(false) }
 
+    // Buddy voice gender
+    var buddyGender    by remember { mutableStateOf(viewModel.getBuddyGender()) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -188,11 +192,83 @@ fun SettingsScreen(
                 onShowBugButtonToggle = { viewModel.setShowBugButton(it) }
             ) {
 
+                // ── Child Profile ─────────────────────────────────────────────
+                SectionHeader("פרופיל הילד")
+                Spacer(Modifier.height(4.dp))
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value         = childProfileState.name,
+                            onValueChange = viewModel::onProfileNameChanged,
+                            label         = { Text("שם הילד") },
+                            singleLine    = true,
+                            modifier      = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value         = childProfileState.ageText,
+                            onValueChange = viewModel::onProfileAgeChanged,
+                            label         = { Text("גיל") },
+                            singleLine    = true,
+                            modifier      = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        // Gender selector
+                        Text("מגדר", style = MaterialTheme.typography.labelLarge)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = childProfileState.gender == "BOY",
+                                onClick  = { viewModel.onProfileGenderChanged("BOY") },
+                                label    = { Text("ילד 👦") }
+                            )
+                            FilterChip(
+                                selected = childProfileState.gender == "GIRL",
+                                onClick  = { viewModel.onProfileGenderChanged("GIRL") },
+                                label    = { Text("ילדה 👧") }
+                            )
+                        }
+                        Button(
+                            onClick  = viewModel::saveChildProfile,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (childProfileState.saved) "נשמר!" else "שמור שינויים")
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
                 // ── Buddy AI Configuration ────────────────────────────────────
                 SectionHeader("הגדרות AI — Buddy")
                 Spacer(Modifier.height(4.dp))
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                        // Buddy voice gender
+                        Text("קול Buddy", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "קובע את מגדר הקול בעברית (זכר/נקבה) ואת הדקדוק של Buddy בשיחה",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = buddyGender == "GIRL",
+                                onClick  = {
+                                    buddyGender = "GIRL"
+                                    viewModel.setBuddyGender("GIRL")
+                                },
+                                label    = { Text("ילדה 👧 (ברירת מחדל)") }
+                            )
+                            FilterChip(
+                                selected = buddyGender == "BOY",
+                                onClick  = {
+                                    buddyGender = "BOY"
+                                    viewModel.setBuddyGender("BOY")
+                                },
+                                label    = { Text("ילד 👦") }
+                            )
+                        }
+
+                        HorizontalDivider()
 
                         // Gemini key
                         ApiKeyField(
