@@ -401,16 +401,22 @@ class SettingsViewModel @Inject constructor(
     )
     val driveUiState: StateFlow<DriveUiState> = _driveUiState.asStateFlow()
 
-    fun onGoogleSignInResult(account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?) {
+    fun onGoogleSignInResult(
+        account: com.google.android.gms.auth.api.signin.GoogleSignInAccount?,
+        error: String? = null
+    ) {
         _driveUiState.update {
             it.copy(
                 isSignedIn   = account != null,
-                accountEmail = account?.email
+                accountEmail = account?.email,
+                syncError    = error
             )
         }
         if (account != null) {
             viewModelScope.launch {
-                driveManager.syncToDrive()
+                driveManager.syncToDrive().onFailure { e ->
+                    _driveUiState.update { it.copy(syncError = "סנכרון נכשל: ${e.message}") }
+                }
             }
         }
     }

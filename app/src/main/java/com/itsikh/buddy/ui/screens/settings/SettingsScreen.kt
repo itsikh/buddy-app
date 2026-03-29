@@ -131,15 +131,18 @@ fun SettingsScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val account = com.google.android.gms.auth.api.signin.GoogleSignIn
-            .getSignedInAccountFromIntent(result.data)
-            .runCatching { result }.getOrNull()
-        // Extract the GoogleSignInAccount from the task
         val signedInAccount = try {
             com.google.android.gms.auth.api.signin.GoogleSignIn
-                .getSignedInAccountFromIntent(result.data).result
-        } catch (e: Exception) { null }
-        viewModel.onGoogleSignInResult(signedInAccount)
+                .getSignedInAccountFromIntent(result.data)
+                .getResult(com.google.android.gms.common.api.ApiException::class.java)
+        } catch (e: com.google.android.gms.common.api.ApiException) {
+            viewModel.onGoogleSignInResult(null, "שגיאה בהתחברות (קוד ${e.statusCode}). ודא שה-SHA-1 רשום ב-Google Cloud Console.")
+            null
+        } catch (e: Exception) {
+            viewModel.onGoogleSignInResult(null, "שגיאה: ${e.message}")
+            null
+        }
+        if (signedInAccount != null) viewModel.onGoogleSignInResult(signedInAccount, null)
     }
 
     // Local UI state
@@ -377,6 +380,13 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text("התחבר עם Google")
+                            }
+                            driveUiState.syncError?.let { err ->
+                                Text(
+                                    err,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                         }
                     }

@@ -7,25 +7,22 @@ import com.itsikh.buddy.data.repository.ConversationRepository
 import com.itsikh.buddy.data.repository.MemoryRepository
 import com.itsikh.buddy.data.repository.VocabularyRepository
 import com.itsikh.buddy.security.SecureKeyManager
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
 
 /**
  * Manages the context window for each AI conversation.
  *
- * Hebrew gender consistency strategy (multi-layer):
+ * Gender consistency — two layers:
+ *   Layer 1: full gender section first in system prompt (conjugation tables + examples)
+ *   Layer 2: short gender reminder prepended to every user message (fights context drift)
  *
- * Layer 1 — System prompt: gender declaration is the very first section,
- *           with full conjugation tables and WRONG vs. CORRECT examples.
- *
- * Layer 2 — Per-turn injection: every user message is prefixed with a short
- *           gender reminder. This fights "context drift" — the known problem
- *           where LLMs revert to masculine defaults after 10-20 turns because
- *           the system prompt loses attention weight as the conversation grows.
- *
- * Research basis: Microsoft multilingual misgendering study (EMNLP 2025) and
- * context drift analysis show that per-turn reinforcement is critical for
- * gender consistency in long Hebrew conversations.
+ * Greeting variety — time-aware + session continuation:
+ *   - Reads device clock → morning/afternoon/evening greeting
+ *   - Loads last completed session summary for continuation context
+ *   - Random style seed (1–6) forces different opener each session
  */
 @Singleton
 class ConversationManager @Inject constructor(
@@ -41,20 +38,30 @@ class ConversationManager @Inject constructor(
     private fun buddyGender(): String =
         secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL
 
-    /**
-     * Prepends a short gender reminder to every user message.
-     * This is Layer 2 of the gender enforcement strategy — keeps gender
-     * anchored near the top of the most recent context window on every turn,
-     * preventing drift back to masculine defaults in long conversations.
-     */
     private fun withGenderReminder(userMessage: String, profile: ChildProfile): String {
         val reminder = systemPromptBuilder.buildTurnReminder(profile.gender, buddyGender())
         return "$reminder\n\n$userMessage"
     }
 
-    /**
-     * Sends a user message and returns Buddy's response.
-     */
+    // ── Time of day ────────────────────────────────────────────────────────────
+
+    private data class TimeContext(
+        val hebrewGreeting: String,   // e.g. "בוקר טוב"
+        val period: String            // "morning" / "afternoon" / "evening" / "night"
+    )
+
+    private fun timeContext(): TimeContext {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return when {
+            hour in 5..11  -> TimeContext("בוקר טוב", "morning")
+            hour in 12..16 -> TimeContext("צהריים טובים", "afternoon")
+            hour in 17..21 -> TimeContext("ערב טוב", "evening")
+            else           -> TimeContext("לילה טוב", "night")
+        }
+    }
+
+    // ── Send message ──────────────────────────────────────────────────────────
+
     suspend fun sendMessage(
         profile: ChildProfile,
         sessionId: String,
@@ -77,7 +84,6 @@ class ConversationManager @Inject constructor(
             buddyGender   = buddyGender()
         )
 
-        // Layer 2: inject gender reminder before the user's message
         return aiRouter.chat(
             systemPrompt = systemPrompt,
             history      = recentMessages,
@@ -85,17 +91,31 @@ class ConversationManager @Inject constructor(
         )
     }
 
-    /**
-     * Generates the opening greeting at session start.
-     */
+    // ── Greeting ──────────────────────────────────────────────────────────────
+
     suspend fun generateGreeting(profile: ChildProfile, mode: ChatMode): String {
         val memoryContext  = memoryRepository.toPromptString(profile.id)
         val reviewWords    = vocabularyRepository.getDueForReview(profile.id)
         val sessionGoal    = lessonPlanner.buildSessionGoal(profile, mode)
         val buddy          = buddyGender()
         val buddyIsGirl    = buddy == AppConfig.BUDDY_GENDER_GIRL
-        val friendWord     = if (buddyIsGirl) "החברה" else "החבר"
-        val buddyReady     = if (buddyIsGirl) "מוכנה" else "מוכן"
+        val childIsGirl    = profile.gender == "GIRL"
+        val time           = timeContext()
+        val genderReminder = systemPromptBuilder.buildTurnReminder(profile.gender, buddy)
+
+        // Gendered address forms
+        val verbSay  = if (childIsGirl) "אמרי"  else "אמור"
+        val verbTell = if (childIsGirl) "ספרי"  else "ספר"
+        val pronoun  = if (childIsGirl) "את"    else "אתה"
+        val friendWord = if (buddyIsGirl) "החברה" else "החבר"
+        val buddyReady = if (buddyIsGirl) "מוכנה" else "מוכן"
+        val buddyHappy = if (buddyIsGirl) "שמחה"  else "שמח"
+
+        // Last completed session summary for continuation context
+        val recentSessions = conversationRepository.getRecentSessions(profile.id, 5)
+        val lastCompletedSession = recentSessions.firstOrNull { it.endedAt != null }
+        val lastSummary = lastCompletedSession?.sessionSummary
+        val isFirstEver = recentSessions.none { it.endedAt != null }
 
         val systemPrompt = systemPromptBuilder.build(
             profile       = profile,
@@ -106,41 +126,139 @@ class ConversationManager @Inject constructor(
             buddyGender   = buddy
         )
 
-        val childIsGirl = profile.gender == "GIRL"
-        val verbTell    = if (childIsGirl) "ספרי"  else "ספר"
-        val verbSay     = if (childIsGirl) "אמרי"  else "אמור"
+        // Random style seed (1–6) — ensures greeting varies every session
+        val styleSeed = Random.nextInt(1, 7)
 
-        // The greeting prompt itself also carries the gender reminder
-        val genderReminder = systemPromptBuilder.buildTurnReminder(profile.gender, buddy)
-
-        val greetingContent = when {
-            memoryContext.isNotBlank() -> """
-                Generate a warm bilingual greeting for ${profile.displayName} — mix Hebrew and English naturally.
-                Structure:
-                1. Hebrew welcome back (1 sentence).
-                2. English phrase referencing something you know about them (short, at their level).
-                3. Hebrew instruction + English prompt: "$verbTell לי — say: 'I am happy to be here!'"
-                Keep it to 3-4 short sentences. Use emojis.
-                GENDER REMINDER: YOU (Buddy) are ${if (buddyIsGirl) "a GIRL (ילדה)" else "a BOY (ילד)"}.
-                ${profile.displayName} is ${if (childIsGirl) "a GIRL (ילדה)" else "a BOY (ילד)"}.
-            """.trimIndent()
-            else -> """
-                Generate a warm bilingual first meeting greeting for ${profile.displayName} (age ${profile.age}).
-                Structure:
-                1. Hebrew intro: "שלום ${profile.displayName}! אני Buddy — $friendWord האנגלי${if (childIsGirl) "ת" else ""} שלך! 🤖"
-                2. English self-intro: "My name is Buddy and I love to chat!"
-                3. Hebrew: "ביחד נדבר אנגלית — זה כיף, אני מבטיח${if (buddyIsGirl) "ה" else ""}! אני $buddyReady!"
-                4. Hebrew prompt: "עכשיו $verbSay לי — say: 'Hello Buddy!'"
-                Keep it warm, fun, short. Use emojis.
-                GENDER REMINDER: YOU (Buddy) are ${if (buddyIsGirl) "a GIRL (ילדה)" else "a BOY (ילד)"}.
-                ${profile.displayName} is ${if (childIsGirl) "a GIRL (ילדה)" else "a BOY (ילד)"}.
-            """.trimIndent()
-        }
+        val greetingInstruction = buildGreetingInstruction(
+            profile       = profile,
+            isFirstEver   = isFirstEver,
+            hasMemory     = memoryContext.isNotBlank(),
+            lastSummary   = lastSummary,
+            time          = time,
+            styleSeed     = styleSeed,
+            childIsGirl   = childIsGirl,
+            buddyIsGirl   = buddyIsGirl,
+            verbSay       = verbSay,
+            verbTell      = verbTell,
+            pronoun       = pronoun,
+            friendWord    = friendWord,
+            buddyReady    = buddyReady,
+            buddyHappy    = buddyHappy,
+            mode          = mode
+        )
 
         return aiRouter.chat(
             systemPrompt = systemPrompt,
             history      = emptyList(),
-            userMessage  = "$genderReminder\n\n$greetingContent"
+            userMessage  = "$genderReminder\n\n$greetingInstruction"
         )
+    }
+
+    private fun buildGreetingInstruction(
+        profile: ChildProfile,
+        isFirstEver: Boolean,
+        hasMemory: Boolean,
+        lastSummary: String?,
+        time: TimeContext,
+        styleSeed: Int,
+        childIsGirl: Boolean,
+        buddyIsGirl: Boolean,
+        verbSay: String,
+        verbTell: String,
+        pronoun: String,
+        friendWord: String,
+        buddyReady: String,
+        buddyHappy: String,
+        mode: ChatMode
+    ): String {
+        val name = profile.displayName
+
+        // ── First-ever session ──────────────────────────────────────────────
+        if (isFirstEver) {
+            return """
+                Generate the very FIRST greeting between Buddy and $name (age ${profile.age}).
+                They have never spoken before. This is the first meeting.
+
+                TIME: It is ${time.period}. Start with "${time.hebrewGreeting}".
+
+                RULES:
+                - MAX 3 short sentences total. SHORT = 5-8 words each.
+                - Mostly Hebrew (80%), one English phrase.
+                - Introduce yourself as Buddy, $friendWord האנגלי${if (childIsGirl) "ת" else ""} של $name.
+                - End by asking $name to say their first English word: "say: 'Hello!'"
+                - Be ENERGETIC. Use 1-2 emojis.
+                - YOU (Buddy) are ${if (buddyIsGirl) "a GIRL" else "a BOY"}: use "אני $buddyHappy", "אני $buddyReady"
+
+                EXAMPLE of style (don't copy — create your own):
+                "${time.hebrewGreeting} $name! 🎉 אני Buddy — $friendWord האנגלי${if (childIsGirl) "ת" else ""} שלך! בוא${if (childIsGirl) "י" else ""} נגיד ביחד: 'Hello!'"
+            """.trimIndent()
+        }
+
+        // ── Returning user — style varies by seed ──────────────────────────
+        val continuationHint = if (lastSummary != null) {
+            "LAST SESSION SUMMARY (use only if relevant to style ${styleSeed}): $lastSummary"
+        } else ""
+
+        val styleDescription = when (styleSeed) {
+            1 -> """
+                Style: TIME-AWARE ENERGY BURST.
+                Lead with "${time.hebrewGreeting} $name!" then one punchy Hebrew line about the time of day.
+                End with a quick English challenge.
+                Example vibe: "${time.hebrewGreeting} $name! ☀️ מוכן${if (childIsGirl) "ה" else ""} לאנגלית? say: 'Good ${time.period}!'"
+            """.trimIndent()
+
+            2 -> """
+                Style: CONTINUE THE STORY / PICK UP WHERE WE LEFT OFF.
+                Reference something from the last session summary (if available).
+                Act like you just remembered something exciting from last time.
+                ${if (lastSummary != null) "Last session context: $lastSummary" else "No last session — just act like you're excited to be back."}
+                Example vibe: "היי $name! זוכר${if (childIsGirl) "ת" else ""} שדיברנו על...? 😄 בוא${if (childIsGirl) "י" else ""} נמשיך!"
+            """.trimIndent()
+
+            3 -> """
+                Style: PLAYFUL CHALLENGE OPENER.
+                Skip pleasantries. Go straight to a fun English challenge.
+                Tease them a little: "יש לי שאלה קשה בשבילך..."
+                Example vibe: "היי! 🎯 יש לי אתגר קטן — can you say: 'I am ready'? $pronoun יכול${if (childIsGirl) "ה" else ""}?"
+            """.trimIndent()
+
+            4 -> """
+                Style: CURIOUS QUESTION OPENER.
+                Ask about their day / what happened since last time.
+                Short question in Hebrew, then invite English.
+                Example vibe: "${time.hebrewGreeting}! מה קרה היום? 🤔 $verbTell לי ב-English!"
+            """.trimIndent()
+
+            5 -> """
+                Style: COMPLIMENT + CHALLENGE.
+                Open with a genuine compliment about their last session (if known) or about the time of day.
+                Then immediately give an English challenge.
+                Example vibe: "$name! 🌟 אני $buddyHappy לראות אותך. Quick — say: 'I'm back!'"
+            """.trimIndent()
+
+            else -> """
+                Style: SURPRISE / RANDOM FUN.
+                Start with something unexpected — a fun fact, a joke setup, or a random English word challenge.
+                Keep it silly and short.
+                Example vibe: "היי $name! 🐧 ידעת שפינגווין באנגלית זה 'penguin'? $verbSay לי!"
+            """.trimIndent()
+        }
+
+        return """
+            Generate a greeting for $name returning to Buddy. Style: $styleSeed/6.
+
+            $styleDescription
+
+            $continuationHint
+
+            HARD RULES — DO NOT BREAK:
+            - MAX 2-3 sentences. SHORT sentences (5-8 words each).
+            - 80% Hebrew, 20% English. The English part = what you want them to SAY.
+            - Do NOT use the exact same opening as the style example — create your own variation.
+            - End with asking $name to say one English phrase.
+            - 1-2 emojis only.
+            - YOU (Buddy) are ${if (buddyIsGirl) "a GIRL — use: אני $buddyHappy, אני $buddyReady" else "a BOY — use: אני $buddyHappy, אני $buddyReady"}.
+            - $name is ${if (childIsGirl) "a GIRL — use feminine address" else "a BOY — use masculine address"}.
+        """.trimIndent()
     }
 }
