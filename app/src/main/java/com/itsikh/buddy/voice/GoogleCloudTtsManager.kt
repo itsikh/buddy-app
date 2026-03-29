@@ -3,6 +3,8 @@ package com.itsikh.buddy.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Base64
 import com.google.gson.Gson
 import com.itsikh.buddy.AppConfig
@@ -17,6 +19,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,19 +61,36 @@ class GoogleCloudTtsManager @Inject constructor(
 
     private val currentPlayer = AtomicReference<MediaPlayer?>(null)
 
+    // Android built-in TTS — used as fallback when no Google Cloud key is set.
+    private var androidTts: TextToSpeech? = null
+    private var androidTtsReady = false
+
+    init {
+        androidTts = TextToSpeech(context) { status ->
+            androidTtsReady = status == TextToSpeech.SUCCESS
+            if (androidTtsReady) {
+                androidTts?.language = Locale.US
+                androidTts?.setSpeechRate(0.9f)  // slightly slower, easier for learners
+            } else {
+                AppLogger.w(TAG, "Android TTS init failed with status $status")
+            }
+        }
+    }
+
     /**
      * Speaks the given text aloud. Suspends until playback completes.
-     * Cancels any currently playing audio before starting.
+     * Falls back to Android's built-in TTS when no Google Cloud TTS key is configured.
      *
-     * @param text     The text to speak (English or Hebrew detected automatically by the voice)
-     * @param language "EN" or "HE" — selects the appropriate WaveNet voice
+     * @param text     The text to speak
+     * @param language "EN" or "HE"
      */
     suspend fun speak(text: String, language: String = "EN") {
         stopSpeaking()
 
         val apiKey = keyManager.getKey(AppConfig.KEY_GOOGLE_TTS)
         if (apiKey.isNullOrBlank()) {
-            AppLogger.w(TAG, "No Google Cloud TTS API key configured — falling back to silent")
+            AppLogger.d(TAG, "No Google Cloud TTS key — using Android TTS fallback")
+            speakWithAndroidTts(text, language)
             return
         }
 
@@ -77,7 +98,38 @@ class GoogleCloudTtsManager @Inject constructor(
             val audioData = synthesize(apiKey, text, language)
             playAudio(audioData)
         } catch (e: Exception) {
-            AppLogger.e(TAG, "TTS failed: ${e.message}")
+            AppLogger.e(TAG, "Google TTS failed: ${e.message} — falling back to Android TTS")
+            speakWithAndroidTts(text, language)
+        }
+    }
+
+    private suspend fun speakWithAndroidTts(text: String, language: String) {
+        val tts = androidTts
+        if (tts == null || !androidTtsReady) {
+            AppLogger.w(TAG, "Android TTS not ready")
+            return
+        }
+
+        // Set language per request so HE/EN is honoured
+        tts.language = if (language == "HE") Locale("he", "IL") else Locale.US
+
+        val utteranceId = UUID.randomUUID().toString()
+        suspendCancellableCoroutine { cont ->
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(uid: String?) {}
+                override fun onDone(uid: String?) {
+                    if (cont.isActive) cont.resume(Unit)
+                }
+                @Deprecated("Deprecated in Java")
+                override fun onError(uid: String?) {
+                    if (cont.isActive) cont.resume(Unit)
+                }
+            })
+            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+            if (result == TextToSpeech.ERROR) {
+                if (cont.isActive) cont.resume(Unit)
+            }
+            cont.invokeOnCancellation { tts.stop() }
         }
     }
 
@@ -87,6 +139,13 @@ class GoogleCloudTtsManager @Inject constructor(
             runCatching { stop() }
             runCatching { release() }
         }
+        androidTts?.runCatching { stop() }
+    }
+
+    fun destroy() {
+        stopSpeaking()
+        androidTts?.shutdown()
+        androidTts = null
     }
 
     private suspend fun synthesize(apiKey: String, text: String, language: String): ByteArray =

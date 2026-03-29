@@ -89,15 +89,16 @@ class ConversationManager @Inject constructor(
 
         val greetingPrompt = when {
             memoryContext.isNotBlank() -> """
-                Generate a warm, enthusiastic greeting for ${profile.displayName}.
-                Reference one specific thing you know about them from the memory context.
-                Keep it to 1-2 sentences. End with ONE question to start the conversation.
-                The question should relate to today's mode: $mode.
+                Generate a warm greeting for ${profile.displayName}.
+                START with exactly one short Hebrew sentence to welcome them back (e.g. "יאללה, בוא נדבר אנגלית!").
+                Then switch to English for the rest. Reference one specific thing you know about them.
+                Keep the whole greeting to 2-3 sentences. End with ONE simple English question.
             """.trimIndent()
             else -> """
                 Generate a warm first-time greeting for ${profile.displayName} who is ${profile.age} years old.
-                Introduce yourself as Buddy, their English-speaking friend.
-                Keep it to 2 sentences. End with a simple question to get them talking.
+                START with exactly one short Hebrew sentence so they feel safe (e.g. "שלום! אני Buddy, חבר האנגלית שלך!").
+                Then switch to English: introduce yourself as Buddy and invite them to chat.
+                Keep it to 2-3 sentences total. End with one very simple question in English.
             """.trimIndent()
         }
 

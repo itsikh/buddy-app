@@ -14,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.itsikh.buddy.bugreport.ScreenshotHolder
+import com.itsikh.buddy.data.models.ChatMode
 import com.itsikh.buddy.data.repository.ProfileRepository
 import com.itsikh.buddy.ui.components.DebugOverlayViewModel
 import com.itsikh.buddy.ui.components.FloatingBugButton
@@ -21,6 +22,7 @@ import com.itsikh.buddy.ui.screens.bugreport.BugReportScreen
 import com.itsikh.buddy.ui.screens.bugreport.ReportMode
 import com.itsikh.buddy.ui.screens.chat.ChatScreen
 import com.itsikh.buddy.ui.screens.garden.VocabularyGardenScreen
+import com.itsikh.buddy.ui.screens.home.HomeScreen
 import com.itsikh.buddy.ui.screens.memory.MemoryViewerScreen
 import com.itsikh.buddy.ui.screens.onboarding.ParentConsentScreen
 import com.itsikh.buddy.ui.screens.onboarding.ProfileSetupScreen
@@ -45,7 +47,7 @@ class StartupViewModel @Inject constructor(
         when {
             profile == null || !profile.parentConsentGiven -> "parent_consent"
             !profile.onboardingComplete                    -> "profile_setup"
-            else                                           -> "chat"
+            else                                           -> "home"
         }
     }
 }
@@ -104,17 +106,41 @@ fun AppNavHost() {
             composable("profile_setup") {
                 ProfileSetupScreen(
                     onProfileCreated = {
-                        navController.navigate("chat") {
+                        navController.navigate("home") {
                             popUpTo("profile_setup") { inclusive = true }
                         }
                     }
                 )
             }
 
-            // ---- Main screen ----
+            // ---- Home (hub screen) ----
+            composable("home") {
+                HomeScreen(
+                    onTalkWithBuddy = { navController.navigate("chat/FREE_CHAT") },
+                    onStories       = { navController.navigate("chat/STORY_TIME") },
+                    onGames         = { navController.navigate("garden") },
+                    onProgress      = { navController.navigate("progress") },
+                    onSettings      = { navController.navigate("settings") }
+                )
+            }
+
+            // ---- Chat (mode passed as path argument) ----
+            composable("chat/{mode}") { backStackEntry ->
+                val modeArg = backStackEntry.arguments?.getString("mode") ?: "FREE_CHAT"
+                val chatMode = runCatching { ChatMode.valueOf(modeArg) }.getOrDefault(ChatMode.FREE_CHAT)
+                ChatScreen(
+                    initialMode    = chatMode,
+                    onOpenSettings = { navController.navigate("settings") },
+                    onBack         = { navController.popBackStack() }
+                )
+            }
+
+            // Legacy route (direct chat link)
             composable("chat") {
                 ChatScreen(
-                    onOpenSettings = { navController.navigate("settings") }
+                    initialMode    = ChatMode.FREE_CHAT,
+                    onOpenSettings = { navController.navigate("settings") },
+                    onBack         = { navController.popBackStack() }
                 )
             }
 
