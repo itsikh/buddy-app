@@ -27,19 +27,6 @@ import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/**
- * Text-to-speech using Google Cloud TTS REST API.
- *
- * Produces high-quality, natural-sounding speech via WaveNet voices — far better quality
- * than Android's built-in TTS, which is critical for a language learning app where
- * the child needs to hear natural English prosody.
- *
- * Setup: Set your Google Cloud API key in Settings → (admin mode) → API Configuration.
- * Enable "Cloud Text-to-Speech API" in your Google Cloud Console project.
- *
- * Audio is streamed as base64-encoded LINEAR16 PCM, decoded to a temp file, and played
- * via MediaPlayer. Temp files are cleaned up after playback.
- */
 @Singleton
 class GoogleCloudTtsManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -52,16 +39,19 @@ class GoogleCloudTtsManager @Inject constructor(
         private const val TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
         private val JSON = "application/json".toMediaType()
 
-        // High-quality WaveNet voices — sounds natural for language learning
-        private const val VOICE_EN = "en-US-Wavenet-D"  // Warm male voice, good for a friendly "buddy"
-        private const val VOICE_HE = "he-IL-Wavenet-A"  // Hebrew voice for UI feedback
-        private const val LANG_EN  = "en-US"
-        private const val LANG_HE  = "he-IL"
+        // WaveNet voices — primary Hebrew voice since Buddy speaks Hebrew+English mix.
+        // SSML <lang> tags switch pronunciation to English for English segments.
+        private const val VOICE_HE  = "he-IL-Wavenet-A"
+        private const val VOICE_EN  = "en-US-Wavenet-F"   // warm female, clear for kids
+        private const val LANG_HE   = "he-IL"
+        private const val LANG_EN   = "en-US"
+
+        private val HEBREW_RANGE = '\u05D0'..'\u05EA'
     }
 
     private val currentPlayer = AtomicReference<MediaPlayer?>(null)
 
-    // Android built-in TTS — used as fallback when no Google Cloud key is set.
+    // Android built-in TTS — fallback when no Google Cloud key is set.
     private var androidTts: TextToSpeech? = null
     private var androidTtsReady = false
 
@@ -69,67 +59,37 @@ class GoogleCloudTtsManager @Inject constructor(
         androidTts = TextToSpeech(context) { status ->
             androidTtsReady = status == TextToSpeech.SUCCESS
             if (androidTtsReady) {
-                androidTts?.language = Locale.US
-                androidTts?.setSpeechRate(0.9f)  // slightly slower, easier for learners
+                androidTts?.language = Locale("he", "IL")  // primary Hebrew
+                androidTts?.setSpeechRate(0.88f)
             } else {
-                AppLogger.w(TAG, "Android TTS init failed with status $status")
+                AppLogger.w(TAG, "Android TTS init failed: $status")
             }
         }
     }
 
     /**
-     * Speaks the given text aloud. Suspends until playback completes.
-     * Falls back to Android's built-in TTS when no Google Cloud TTS key is configured.
-     *
-     * @param text     The text to speak
-     * @param language "EN" or "HE"
+     * Speaks [text] aloud. Strips markdown/symbols, then uses SSML to switch
+     * between Hebrew and English voices mid-sentence for natural bilingual speech.
+     * Falls back to Android TTS when no Google Cloud key is configured.
      */
-    suspend fun speak(text: String, language: String = "EN") {
+    suspend fun speak(rawText: String, language: String = "HE") {
         stopSpeaking()
+        val text = cleanForTts(rawText)
+        if (text.isBlank()) return
 
         val apiKey = keyManager.getKey(AppConfig.KEY_GOOGLE_TTS)
         if (apiKey.isNullOrBlank()) {
             AppLogger.d(TAG, "No Google Cloud TTS key — using Android TTS fallback")
-            speakWithAndroidTts(text, language)
+            speakWithAndroidTts(text)
             return
         }
 
         try {
-            val audioData = synthesize(apiKey, text, language)
+            val audioData = synthesizeWithSsml(apiKey, text)
             playAudio(audioData)
         } catch (e: Exception) {
             AppLogger.e(TAG, "Google TTS failed: ${e.message} — falling back to Android TTS")
-            speakWithAndroidTts(text, language)
-        }
-    }
-
-    private suspend fun speakWithAndroidTts(text: String, language: String) {
-        val tts = androidTts
-        if (tts == null || !androidTtsReady) {
-            AppLogger.w(TAG, "Android TTS not ready")
-            return
-        }
-
-        // Set language per request so HE/EN is honoured
-        tts.language = if (language == "HE") Locale("he", "IL") else Locale.US
-
-        val utteranceId = UUID.randomUUID().toString()
-        suspendCancellableCoroutine { cont ->
-            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(uid: String?) {}
-                override fun onDone(uid: String?) {
-                    if (cont.isActive) cont.resume(Unit)
-                }
-                @Deprecated("Deprecated in Java")
-                override fun onError(uid: String?) {
-                    if (cont.isActive) cont.resume(Unit)
-                }
-            })
-            val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-            if (result == TextToSpeech.ERROR) {
-                if (cont.isActive) cont.resume(Unit)
-            }
-            cont.invokeOnCancellation { tts.stop() }
+            speakWithAndroidTts(text)
         }
     }
 
@@ -148,20 +108,93 @@ class GoogleCloudTtsManager @Inject constructor(
         androidTts = null
     }
 
-    private suspend fun synthesize(apiKey: String, text: String, language: String): ByteArray =
-        withContext(Dispatchers.IO) {
-            val voiceName = if (language == "HE") VOICE_HE else VOICE_EN
-            val langCode  = if (language == "HE") LANG_HE else LANG_EN
+    // ── Text cleaning ──────────────────────────────────────────────────────
 
+    /**
+     * Strips markdown formatting and symbols that should not be spoken aloud.
+     * Keeps letters (Hebrew + Latin), digits, basic punctuation, and spaces.
+     */
+    private fun cleanForTts(text: String): String = text
+        .replace(Regex("```[\\s\\S]*?```"), "")           // fenced code blocks
+        .replace(Regex("`[^`]+`"), "")                     // inline code
+        .replace(Regex("\\*{1,3}([^*]+)\\*{1,3}"), "$1")  // **bold** / *italic*
+        .replace(Regex("_{1,2}([^_]+)_{1,2}"), "$1")      // _italic_ / __bold__
+        .replace(Regex("#{1,6}\\s*"), "")                  // # headings
+        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")   // [link](url) → text
+        .replace(Regex("https?://\\S+"), "")               // bare URLs
+        .replace(Regex("!\\[.*?]\\(.*?\\)"), "")           // images
+        .replace(Regex("[*_~|>]"), "")                     // remaining markdown chars
+        // Remove emoji and non-letter symbols, keep: Hebrew, Latin, digits, .,!?;:'"()-
+        .replace(Regex("[^\\p{L}\\p{N}\\s\\u05D0-\\u05EA.,!?;:'\"()\\-–—]"), " ")
+        .replace(Regex("[ \\t]+"), " ")
+        .trim()
+
+    // ── SSML building ──────────────────────────────────────────────────────
+
+    /**
+     * Splits text into Hebrew/English segments and wraps each in SSML <lang> tags
+     * so the Hebrew WaveNet voice pronounces Hebrew correctly and switches to
+     * English phonetics for English words — all in one API call, no choppy gaps.
+     */
+    private fun buildSsml(text: String): String {
+        data class Segment(val text: String, val isHebrew: Boolean)
+
+        val segments = mutableListOf<Segment>()
+        val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        var currentWords = mutableListOf<String>()
+        var currentIsHebrew: Boolean? = null
+
+        fun flush() {
+            if (currentWords.isNotEmpty() && currentIsHebrew != null) {
+                segments += Segment(currentWords.joinToString(" "), currentIsHebrew!!)
+                currentWords = mutableListOf()
+            }
+        }
+
+        for (word in words) {
+            val hebrewCount = word.count { it in HEBREW_RANGE }
+            val isHebrew = hebrewCount > 0
+            if (currentIsHebrew == null) currentIsHebrew = isHebrew
+            if (isHebrew != currentIsHebrew) flush()
+            currentIsHebrew = isHebrew
+            currentWords += word
+        }
+        flush()
+
+        // Single-language text → no SSML needed, keep it simple
+        if (segments.size == 1) {
+            val lang = if (segments[0].isHebrew) LANG_HE else LANG_EN
+            return "<speak><lang xml:lang=\"$lang\">${segments[0].text}</lang></speak>"
+        }
+
+        val sb = StringBuilder("<speak>")
+        for (seg in segments) {
+            val lang = if (seg.isHebrew) LANG_HE else LANG_EN
+            sb.append("<lang xml:lang=\"$lang\">")
+            sb.append(seg.text)
+            sb.append("</lang> ")
+        }
+        sb.append("</speak>")
+        return sb.toString()
+    }
+
+    // ── Google Cloud TTS ───────────────────────────────────────────────────
+
+    private suspend fun synthesizeWithSsml(apiKey: String, text: String): ByteArray =
+        withContext(Dispatchers.IO) {
+            val ssml = buildSsml(text)
+            AppLogger.d(TAG, "SSML: $ssml")
+
+            // Primary voice is Hebrew — SSML <lang> tags handle English segments
             val requestBody = mapOf(
-                "input"       to mapOf("text" to text),
+                "input"       to mapOf("ssml" to ssml),
                 "voice"       to mapOf(
-                    "languageCode" to langCode,
-                    "name"         to voiceName
+                    "languageCode" to LANG_HE,
+                    "name"         to VOICE_HE
                 ),
                 "audioConfig" to mapOf(
                     "audioEncoding" to "MP3",
-                    "speakingRate"  to 0.95,  // Slightly slower than native — easier for learners
+                    "speakingRate"  to 0.9,
                     "pitch"         to 0.0
                 )
             )
@@ -181,14 +214,36 @@ class GoogleCloudTtsManager @Inject constructor(
                 @Suppress("UNCHECKED_CAST")
                 val parsed = gson.fromJson(responseJson, Map::class.java) as Map<String, Any>
                 val encoded = parsed["audioContent"] as? String
-                    ?: throw IllegalStateException("No audioContent in TTS response")
+                    ?: throw IllegalStateException("No audioContent in response")
 
                 Base64.decode(encoded, Base64.DEFAULT)
             }
         }
 
+    // ── Android TTS fallback ───────────────────────────────────────────────
+
+    private suspend fun speakWithAndroidTts(text: String) {
+        val tts = androidTts ?: return
+        if (!androidTtsReady) return
+
+        val utteranceId = UUID.randomUUID().toString()
+        suspendCancellableCoroutine { cont ->
+            tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(uid: String?) {}
+                override fun onDone(uid: String?) { if (cont.isActive) cont.resume(Unit) }
+                @Deprecated("Deprecated in Java")
+                override fun onError(uid: String?) { if (cont.isActive) cont.resume(Unit) }
+            })
+            if (tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.ERROR) {
+                if (cont.isActive) cont.resume(Unit)
+            }
+            cont.invokeOnCancellation { tts.stop() }
+        }
+    }
+
+    // ── MediaPlayer playback ───────────────────────────────────────────────
+
     private suspend fun playAudio(audioData: ByteArray) {
-        // Write to a temp file — MediaPlayer works better with a file URI than in-memory bytes
         val tempFile = withContext(Dispatchers.IO) {
             File(context.cacheDir, "buddy_tts_${System.currentTimeMillis()}.mp3").also {
                 it.writeBytes(audioData)

@@ -190,6 +190,12 @@ class ChatViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
+    /** Immediately stops Buddy speaking and returns to IDLE. */
+    fun stopSpeaking() {
+        ttsManager.stopSpeaking()
+        _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
+    }
+
     /** Sends a typed text message (for accessibility or testing). */
     fun sendTextMessage(text: String) {
         if (text.isBlank()) return
@@ -243,14 +249,9 @@ class ChatViewModel @Inject constructor(
         )
         conversationRepository.addMessage(assistantMsg)
 
-        // Speak via TTS — detect dominant language (Hebrew or English)
-        // Buddy now speaks in a Hebrew+English mix; use Hebrew voice when the message
-        // contains significant Hebrew so the Hebrew parts are intelligible.
-        val hebrewChars = text.count { it in '\u05D0'..'\u05EA' }
-        val latinChars  = text.count { it.isLetter() && it < '\u0250' }
-        val lang = if (hebrewChars > latinChars / 3) "HE" else "EN"
+        // TTS handles language detection internally via SSML <lang> tags
         _uiState.update { it.copy(voiceState = VoiceState.SPEAKING) }
-        ttsManager.speak(text, language = lang)
+        ttsManager.speak(text)
         _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
     }
 

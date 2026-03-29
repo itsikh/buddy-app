@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -137,10 +138,11 @@ fun ChatScreen(
 
             // ── Conversational face area ─────────────────────────────────
             ConversationArea(
-                messages    = uiState.messages,
-                voiceState  = uiState.voiceState,
-                partialText = uiState.partialSpeechText,
-                modifier    = Modifier.weight(1f)
+                messages     = uiState.messages,
+                voiceState   = uiState.voiceState,
+                partialText  = uiState.partialSpeechText,
+                onStopSpeaking = { viewModel.stopSpeaking() },
+                modifier     = Modifier.weight(1f)
             )
 
             // ── Transient error bar ──────────────────────────────────────
@@ -163,6 +165,7 @@ fun ChatScreen(
                 voiceState          = uiState.voiceState,
                 hasAudioPermission  = hasAudioPermission,
                 onRequestPermission = { requestMicPermission.launch(Manifest.permission.RECORD_AUDIO) },
+                onStopSpeaking = { viewModel.stopSpeaking() },
                 onPressDown = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.startListening()
@@ -181,6 +184,7 @@ private fun ConversationArea(
     messages: List<Message>,
     voiceState: VoiceState,
     partialText: String,
+    onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Split last buddy / user messages
@@ -194,8 +198,12 @@ private fun ConversationArea(
 
         Spacer(Modifier.height(12.dp))
 
-        // ── Animated Buddy avatar ────────────────────────────────────────
-        BuddyAvatar(voiceState = voiceState, modifier = Modifier.size(160.dp))
+        // ── Animated Buddy avatar — tappable to stop when speaking ──────
+        BuddyAvatar(
+            voiceState     = voiceState,
+            onStopSpeaking = onStopSpeaking,
+            modifier       = Modifier.size(160.dp)
+        )
 
         Spacer(Modifier.height(20.dp))
 
@@ -254,7 +262,11 @@ private fun ConversationArea(
 
 // ── Animated Buddy avatar ──────────────────────────────────────────────────
 @Composable
-private fun BuddyAvatar(voiceState: VoiceState, modifier: Modifier = Modifier) {
+private fun BuddyAvatar(
+    voiceState: VoiceState,
+    onStopSpeaking: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "avatar")
 
     // Breathing scale — always subtle
@@ -299,10 +311,31 @@ private fun BuddyAvatar(voiceState: VoiceState, modifier: Modifier = Modifier) {
         label = "listen_scale"
     )
 
-    Box(
-        modifier         = modifier,
-        contentAlignment = Alignment.Center
+    Column(
+        modifier            = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // "הקש לעצור" label — visible only when speaking
+        AnimatedVisibility(visible = voiceState == VoiceState.SPEAKING) {
+            Text(
+                text      = "הקש לעצור",
+                fontSize  = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color     = MaterialTheme.colorScheme.primary,
+                modifier  = Modifier.padding(bottom = 4.dp)
+            )
+        }
+
+        Box(
+            modifier         = Modifier
+                .size(160.dp)
+                .then(
+                    if (voiceState == VoiceState.SPEAKING)
+                        Modifier.clickable(onClick = onStopSpeaking)
+                    else Modifier
+                ),
+            contentAlignment = Alignment.Center
+        ) {
         // Outer glow ring (speaking)
         if (voiceState == VoiceState.SPEAKING) {
             Box(
@@ -360,7 +393,8 @@ private fun BuddyAvatar(voiceState: VoiceState, modifier: Modifier = Modifier) {
             }
             Text(face, fontSize = 64.sp, textAlign = TextAlign.Center)
         }
-    }
+        } // close clickable Box
+    } // close Column
 }
 
 // ── Buddy speech bubble ────────────────────────────────────────────────────
@@ -629,6 +663,7 @@ private fun VoiceControlBar(
     voiceState: VoiceState,
     hasAudioPermission: Boolean,
     onRequestPermission: () -> Unit,
+    onStopSpeaking: () -> Unit,
     onPressDown: () -> Unit,
     onPressUp: () -> Unit
 ) {
@@ -660,32 +695,70 @@ private fun VoiceControlBar(
                 return@Column
             }
 
+            // ── SPEAKING: full-width stop button ──────────────────────────
+            if (voiceState == VoiceState.SPEAKING) {
+                Button(
+                    onClick  = onStopSpeaking,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape    = MaterialTheme.shapes.large
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text("עצור", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                return@Column
+            }
+
+            // ── THINKING: disabled indicator ──────────────────────────────
+            if (voiceState == VoiceState.THINKING) {
+                Text(
+                    text  = stringResource(R.string.chat_thinking),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
+                Box(
+                    modifier         = Modifier
+                        .size(88.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.HourglassTop,
+                        contentDescription = null,
+                        tint     = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                return@Column
+            }
+
+            // ── IDLE / LISTENING: push-to-talk ────────────────────────────
             val enabled = voiceState == VoiceState.IDLE || voiceState == VoiceState.LISTENING
 
-            // Status label
             Text(
                 text = when (voiceState) {
                     VoiceState.IDLE      -> stringResource(R.string.chat_hold_to_speak)
                     VoiceState.LISTENING -> stringResource(R.string.chat_listening)
-                    VoiceState.THINKING  -> stringResource(R.string.chat_thinking)
-                    VoiceState.SPEAKING  -> stringResource(R.string.chat_speaking)
+                    else                 -> ""
                 },
                 style    = MaterialTheme.typography.labelMedium,
                 color    = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 14.dp)
             )
 
-            // Big push-to-talk button
             Box(
                 modifier = Modifier
                     .size(88.dp)
                     .scale(scale)
                     .background(
-                        color = when {
-                            !enabled    -> MaterialTheme.colorScheme.surfaceVariant
-                            isListening -> MaterialTheme.colorScheme.error
-                            else        -> MaterialTheme.colorScheme.primaryContainer
-                        },
+                        color = if (isListening) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.primaryContainer,
                         shape = CircleShape
                     )
                     .pointerInput(enabled, voiceState) {
@@ -701,19 +774,11 @@ private fun VoiceControlBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = when (voiceState) {
-                        VoiceState.LISTENING -> Icons.Default.Stop
-                        VoiceState.SPEAKING  -> Icons.Default.VolumeUp
-                        VoiceState.THINKING  -> Icons.Default.HourglassTop
-                        else                 -> Icons.Default.Mic
-                    },
+                    imageVector        = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
                     contentDescription = "Push to talk",
-                    tint     = when {
-                        !enabled    -> MaterialTheme.colorScheme.onSurfaceVariant
-                        isListening -> Color.White
-                        else        -> MaterialTheme.colorScheme.onPrimaryContainer
-                    },
-                    modifier = Modifier.size(40.dp)
+                    tint               = if (isListening) Color.White
+                                         else MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier           = Modifier.size(40.dp)
                 )
             }
         }
