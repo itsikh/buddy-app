@@ -63,8 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.BuildConfig
-import com.itsikh.buddy.voice.TtsBackend
 import com.itsikh.buddy.security.ClearDataConfirmationDialog
+import com.itsikh.buddy.security.KeyValidation
+import com.itsikh.buddy.voice.TtsBackend
 import com.itsikh.buddy.ui.components.SectionHeader
 import com.itsikh.buddy.ui.components.SettingsScaffold
 import com.itsikh.buddy.ui.screens.bugreport.ReportMode
@@ -121,6 +122,9 @@ fun SettingsScreen(
     val childProfileState  by viewModel.childProfileState.collectAsState()
     val clearMemoryState   by viewModel.clearMemoryState.collectAsState()
     val ttsBackend         by viewModel.ttsBackend.collectAsState()
+    val geminiValidation   by viewModel.geminiValidation.collectAsState()
+    val claudeValidation   by viewModel.claudeValidation.collectAsState()
+    val ttsValidation      by viewModel.ttsValidation.collectAsState()
 
     // SAF launchers — CreateDocument shows all providers including Google Drive
     val exportLauncher = rememberLauncherForActivityResult(
@@ -313,6 +317,7 @@ fun SettingsScreen(
                             value     = geminiKey,
                             visible   = geminiVisible,
                             hasKey    = viewModel.hasGeminiKey,
+                            validation = geminiValidation,
                             onChange  = { geminiKey = it },
                             onToggleVisibility = { geminiVisible = !geminiVisible },
                             onSave    = { viewModel.saveGeminiKey(geminiKey); geminiKey = "" },
@@ -328,6 +333,7 @@ fun SettingsScreen(
                             value     = claudeKey,
                             visible   = claudeVisible,
                             hasKey    = viewModel.hasClaudeKey,
+                            validation = claudeValidation,
                             onChange  = { claudeKey = it },
                             onToggleVisibility = { claudeVisible = !claudeVisible },
                             onSave    = { viewModel.saveClaudeKey(claudeKey); claudeKey = "" },
@@ -343,6 +349,7 @@ fun SettingsScreen(
                             value     = googleTtsKey,
                             visible   = ttsVisible,
                             hasKey    = viewModel.hasGoogleTtsKey,
+                            validation = ttsValidation,
                             onChange  = { googleTtsKey = it },
                             onToggleVisibility = { ttsVisible = !ttsVisible },
                             onSave    = { viewModel.saveGoogleTtsKey(googleTtsKey); googleTtsKey = "" },
@@ -923,7 +930,8 @@ fun SettingsScreen(
 
 /**
  * Reusable password-field for storing an API key.
- * Shows a ✓ indicator when a key is already stored, or an input + Save button when empty.
+ * Shows stored status + live validation result when a key exists,
+ * or an input + Save button when no key is set.
  */
 @Composable
 private fun ApiKeyField(
@@ -932,6 +940,7 @@ private fun ApiKeyField(
     value: String,
     visible: Boolean,
     hasKey: Boolean,
+    validation: KeyValidation = KeyValidation.Idle,
     onChange: (String) -> Unit,
     onToggleVisibility: () -> Unit,
     onSave: () -> Unit,
@@ -946,9 +955,36 @@ private fun ApiKeyField(
             Text(label, style = MaterialTheme.typography.labelLarge)
             if (hasKey) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("מוגדר", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    when (validation) {
+                        is KeyValidation.Validating -> {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(4.dp))
+                            Text("בודק…", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        is KeyValidation.Ok -> {
+                            Icon(Icons.Default.CheckCircle, null,
+                                tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("תקין", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.tertiary)
+                        }
+                        is KeyValidation.Error -> {
+                            Icon(Icons.Default.Warning, null,
+                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("שגיאה", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error)
+                        }
+                        else -> {
+                            // Idle — key set but not yet validated (loaded from storage)
+                            Icon(Icons.Default.CheckCircle, null,
+                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("מוגדר", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = onClear, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
                         Text("נקה", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
@@ -957,6 +993,20 @@ private fun ApiKeyField(
             }
         }
         Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        // Show validation details below the label row
+        if (hasKey) {
+            when (validation) {
+                is KeyValidation.Ok ->
+                    Text(validation.info, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary)
+                is KeyValidation.Error ->
+                    Text(validation.message, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error)
+                else -> {}
+            }
+        }
+
         if (!hasKey) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

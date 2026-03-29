@@ -19,6 +19,8 @@ import com.itsikh.buddy.logging.LogLevel
 import com.itsikh.buddy.security.SecureKeyManager
 import com.itsikh.buddy.update.AppUpdateManager
 import com.itsikh.buddy.update.UpdateInfo
+import com.itsikh.buddy.security.KeyValidation
+import com.itsikh.buddy.security.KeyValidator
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
 import com.itsikh.buddy.voice.TtsBackend
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -72,6 +74,7 @@ class SettingsViewModel @Inject constructor(
     private val memoryRepository: MemoryRepository,
     private val vocabularyRepository: VocabularyRepository,
     private val ttsManager: GoogleCloudTtsManager,
+    private val keyValidator: KeyValidator,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -400,6 +403,17 @@ class SettingsViewModel @Inject constructor(
     val ttsBackend: StateFlow<TtsBackend> = ttsManager.ttsBackend
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TtsBackend.UNKNOWN)
 
+    // ── Key validation state ──────────────────────────────────────────────────
+
+    private val _geminiValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
+    val geminiValidation: StateFlow<KeyValidation> = _geminiValidation.asStateFlow()
+
+    private val _claudeValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
+    val claudeValidation: StateFlow<KeyValidation> = _claudeValidation.asStateFlow()
+
+    private val _ttsValidation = MutableStateFlow<KeyValidation>(KeyValidation.Idle)
+    val ttsValidation: StateFlow<KeyValidation> = _ttsValidation.asStateFlow()
+
     fun getBuddyGender(): String =
         secureKeyManager.getKey(AppConfig.PREF_BUDDY_GENDER) ?: AppConfig.BUDDY_GENDER_GIRL
 
@@ -411,22 +425,49 @@ class SettingsViewModel @Inject constructor(
         secureKeyManager.getKey(AppConfig.PREF_AI_DEFAULT_PROVIDER) ?: AppConfig.AI_PROVIDER_GEMINI
 
     fun saveGeminiKey(key: String) {
-        if (key.isNotBlank()) secureKeyManager.saveKey(AppConfig.KEY_GEMINI_API, key.trim())
+        val trimmed = key.trim()
+        if (trimmed.isBlank()) return
+        secureKeyManager.saveKey(AppConfig.KEY_GEMINI_API, trimmed)
+        _geminiValidation.value = KeyValidation.Validating
+        viewModelScope.launch {
+            _geminiValidation.value = keyValidator.validateGemini(trimmed)
+        }
     }
 
-    fun clearGeminiKey() = secureKeyManager.deleteKey(AppConfig.KEY_GEMINI_API)
+    fun clearGeminiKey() {
+        secureKeyManager.deleteKey(AppConfig.KEY_GEMINI_API)
+        _geminiValidation.value = KeyValidation.Idle
+    }
 
     fun saveClaudeKey(key: String) {
-        if (key.isNotBlank()) secureKeyManager.saveKey(AppConfig.KEY_CLAUDE_API, key.trim())
+        val trimmed = key.trim()
+        if (trimmed.isBlank()) return
+        secureKeyManager.saveKey(AppConfig.KEY_CLAUDE_API, trimmed)
+        _claudeValidation.value = KeyValidation.Validating
+        viewModelScope.launch {
+            _claudeValidation.value = keyValidator.validateClaude(trimmed)
+        }
     }
 
-    fun clearClaudeKey() = secureKeyManager.deleteKey(AppConfig.KEY_CLAUDE_API)
+    fun clearClaudeKey() {
+        secureKeyManager.deleteKey(AppConfig.KEY_CLAUDE_API)
+        _claudeValidation.value = KeyValidation.Idle
+    }
 
     fun saveGoogleTtsKey(key: String) {
-        if (key.isNotBlank()) secureKeyManager.saveKey(AppConfig.KEY_GOOGLE_TTS, key.trim())
+        val trimmed = key.trim()
+        if (trimmed.isBlank()) return
+        secureKeyManager.saveKey(AppConfig.KEY_GOOGLE_TTS, trimmed)
+        _ttsValidation.value = KeyValidation.Validating
+        viewModelScope.launch {
+            _ttsValidation.value = keyValidator.validateGoogleTts(trimmed)
+        }
     }
 
-    fun clearGoogleTtsKey() = secureKeyManager.deleteKey(AppConfig.KEY_GOOGLE_TTS)
+    fun clearGoogleTtsKey() {
+        secureKeyManager.deleteKey(AppConfig.KEY_GOOGLE_TTS)
+        _ttsValidation.value = KeyValidation.Idle
+    }
 
     fun setAiDefaultProvider(provider: String) {
         secureKeyManager.saveKey(AppConfig.PREF_AI_DEFAULT_PROVIDER, provider)
