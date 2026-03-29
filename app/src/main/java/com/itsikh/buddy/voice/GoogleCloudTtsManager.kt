@@ -279,17 +279,20 @@ class GoogleCloudTtsManager @Inject constructor(
         val ssml = buildSsml(text, enVoiceName)
         AppLogger.d(TAG, "SSML [$heVoiceName]: $ssml")
 
+        val isChirp = heVoiceName.contains("Chirp", ignoreCase = true)
+        val audioConfig = buildMap<String, Any> {
+            put("audioEncoding", "MP3")
+            put("speakingRate", 0.9)
+            if (!isChirp) put("pitch", 2.0)  // Chirp3-HD does not support pitch
+        }
+
         val requestBody = mapOf(
             "input"       to mapOf("ssml" to ssml),
             "voice"       to mapOf(
                 "languageCode" to LANG_HE,
                 "name"         to heVoiceName
             ),
-            "audioConfig" to mapOf(
-                "audioEncoding" to "MP3",
-                "speakingRate"  to 0.9,
-                "pitch"         to 2.0   // +2 semitones: warmer, friendlier for kids
-            )
+            "audioConfig" to audioConfig
         )
 
         val request = Request.Builder()
