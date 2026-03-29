@@ -3,6 +3,9 @@ package com.itsikh.buddy.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 
 // "The Tactile Playground" — The Digital Sandbox design system.
 // All color tokens sourced from the Google Stitch "Warm Morning" design spec.
@@ -50,6 +53,13 @@ fun BuddyTheme(content: @Composable () -> Unit) {
         colorScheme = BuddyColorScheme,
         typography  = BuddyTypography,
         shapes      = BuddyShapes,
-        content     = content,
-    )
+    ) {
+        // The app UI is entirely in Hebrew — force RTL for all layouts.
+        // Individual Text composables that contain English content still render
+        // left-to-right via the Unicode BiDi algorithm; this only affects
+        // Row/Column/arrangement directionality and Start/End padding.
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            content()
+        }
+    }
 }

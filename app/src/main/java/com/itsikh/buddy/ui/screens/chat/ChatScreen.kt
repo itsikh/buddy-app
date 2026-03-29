@@ -1,5 +1,9 @@
 package com.itsikh.buddy.ui.screens.chat
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -20,13 +24,20 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsikh.buddy.R
 import com.itsikh.buddy.data.models.ChatMode
@@ -40,7 +51,29 @@ fun ChatScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val haptic  = LocalHapticFeedback.current
+    val haptic   = LocalHapticFeedback.current
+    val context  = LocalContext.current
+
+    // ── Microphone runtime permission ────────────────────────────────────
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val requestMicPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasAudioPermission = granted }
+
+    // ── Re-check API key when returning from Settings ────────────────────
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.recheckApiKey()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.startSession(ChatMode.FREE_CHAT)
@@ -50,16 +83,16 @@ fun ChatScreen(
         onDispose { viewModel.endSession() }
     }
 
-    // Badge earned dialog
+    // ── Badge earned dialog ──────────────────────────────────────────────
     val newBadges = uiState.newBadges
     if (newBadges.isNotEmpty()) {
         val badge = BadgeDefinitions.findById(newBadges.first())
         if (badge != null) {
             AlertDialog(
                 onDismissRequest = { viewModel.clearNewBadges() },
-                icon = { Text(badge.icon, fontSize = 40.sp) },
+                icon  = { Text(badge.icon, fontSize = 40.sp) },
                 title = { Text("כל הכבוד! 🎉", textAlign = TextAlign.Center) },
-                text = {
+                text  = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(badge.nameHe, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(Modifier.height(4.dp))
@@ -67,18 +100,15 @@ fun ChatScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { viewModel.clearNewBadges() }) {
-                        Text("תודה! 😊")
-                    }
+                    TextButton(onClick = { viewModel.clearNewBadges() }) { Text("תודה! 😊") }
                 }
             )
         }
     }
 
-    // Error snackbar
+    // ── Auto-dismiss error after 3 s ────────────────────────────────────
     uiState.error?.let { error ->
         LaunchedEffect(error) {
-            // Auto-dismiss after 3 seconds
             kotlinx.coroutines.delay(3000)
             viewModel.dismissError()
         }
@@ -87,9 +117,9 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             ChatTopBar(
-                profile         = uiState.profile,
-                streakDays      = uiState.streakDays,
-                onOpenSettings  = onOpenSettings
+                profile        = uiState.profile,
+                streakDays     = uiState.streakDays,
+                onOpenSettings = onOpenSettings
             )
         }
     ) { padding ->
@@ -98,38 +128,46 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Mode selector tabs
+
+            // ── No API key banner ────────────────────────────────────────
+            AnimatedVisibility(visible = uiState.noApiKey) {
+                NoApiKeyBanner(onOpenSettings = onOpenSettings)
+            }
+
+            // ── Mode selector tabs ───────────────────────────────────────
             ModeSelector(
-                currentMode = uiState.mode,
+                currentMode  = uiState.mode,
                 onModeChange = { viewModel.switchMode(it) }
             )
 
-            // Messages list
+            // ── Messages list ────────────────────────────────────────────
             MessagesList(
-                messages       = uiState.messages,
-                voiceState     = uiState.voiceState,
-                partialText    = uiState.partialSpeechText,
-                modifier       = Modifier.weight(1f)
+                messages    = uiState.messages,
+                voiceState  = uiState.voiceState,
+                partialText = uiState.partialSpeechText,
+                modifier    = Modifier.weight(1f)
             )
 
-            // Error bar
+            // ── Transient error bar ──────────────────────────────────────
             AnimatedVisibility(visible = uiState.error != null) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color    = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = uiState.error ?: "",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        text      = uiState.error ?: "",
+                        color     = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier  = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         textAlign = TextAlign.Center
                     )
                 }
             }
 
-            // Voice control bar
+            // ── Voice control bar ────────────────────────────────────────
             VoiceControlBar(
-                voiceState  = uiState.voiceState,
+                voiceState         = uiState.voiceState,
+                hasAudioPermission = hasAudioPermission,
+                onRequestPermission = { requestMicPermission.launch(Manifest.permission.RECORD_AUDIO) },
                 onPressDown = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.startListening()
@@ -140,6 +178,46 @@ fun ChatScreen(
     }
 }
 
+// ── No API key banner ──────────────────────────────────────────────────────
+@Composable
+private fun NoApiKeyBanner(onOpenSettings: () -> Unit) {
+    Surface(
+        color    = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment    = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("🔑", fontSize = 20.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "חסר מפתח AI",
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 14.sp,
+                    color      = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Text(
+                    "הגדר מפתח Gemini או Claude בהגדרות כדי שBuddy יוכל לדבר",
+                    fontSize = 12.sp,
+                    color    = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            // Force LTR for the button so the arrow points correctly
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                FilledTonalButton(
+                    onClick  = onOpenSettings,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text("הגדרות", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+// ── Top bar ────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatTopBar(
@@ -165,7 +243,6 @@ private fun ChatTopBar(
             }
         },
         actions = {
-            // Streak display
             if (streakDays > 0) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -186,6 +263,7 @@ private fun ChatTopBar(
     )
 }
 
+// ── Mode selector ──────────────────────────────────────────────────────────
 @Composable
 private fun ModeSelector(
     currentMode: ChatMode,
@@ -226,6 +304,7 @@ private fun ModeSelector(
     }
 }
 
+// ── Messages list ──────────────────────────────────────────────────────────
 @Composable
 private fun MessagesList(
     messages: List<Message>,
@@ -252,84 +331,104 @@ private fun MessagesList(
             MessageBubble(message = message)
         }
 
-        // Partial speech result (live while listening)
         if (partialText.isNotBlank()) {
-            item {
-                PartialSpeechBubble(text = partialText)
-            }
+            item { PartialSpeechBubble(text = partialText) }
         }
 
-        // Thinking / speaking indicator
         if (voiceState == VoiceState.THINKING || voiceState == VoiceState.SPEAKING) {
-            item {
-                BuddyStatusBubble(voiceState = voiceState)
-            }
+            item { BuddyStatusBubble(voiceState = voiceState) }
         }
     }
 }
 
+// ── Message bubble ─────────────────────────────────────────────────────────
+// Uses absoluteLeft/absoluteRight so user messages are ALWAYS on the right
+// and AI messages ALWAYS on the left, regardless of global layout direction.
 @Composable
 private fun MessageBubble(message: Message) {
     val isUser = message.role == "user"
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+        // Absolute positioning: unaffected by the global RTL CompositionLocal
+        horizontalArrangement = if (isUser) Arrangement.Absolute.Right else Arrangement.Absolute.Left
     ) {
         if (!isUser) {
             Text("🤖", fontSize = 20.sp, modifier = Modifier.padding(end = 4.dp, top = 4.dp))
         }
 
         Surface(
-            shape = RoundedCornerShape(
-                topStart    = if (isUser) 16.dp else 4.dp,
-                topEnd      = if (isUser) 4.dp  else 16.dp,
-                bottomStart = 16.dp,
-                bottomEnd   = 16.dp
-            ),
+            shape = if (isUser) {
+                RoundedCornerShape(
+                    topStart    = 16.dp,
+                    topEnd      = 4.dp,
+                    bottomStart = 16.dp,
+                    bottomEnd   = 16.dp
+                )
+            } else {
+                RoundedCornerShape(
+                    topStart    = 4.dp,
+                    topEnd      = 16.dp,
+                    bottomStart = 16.dp,
+                    bottomEnd   = 16.dp
+                )
+            },
             color = if (isUser)
                 MaterialTheme.colorScheme.primaryContainer
             else
                 MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier.widthIn(max = 280.dp)
         ) {
-            Text(
-                text     = message.text,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                style    = MaterialTheme.typography.bodyLarge
-            )
-        }
-    }
-}
-
-@Composable
-private fun PartialSpeechBubble(text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
-    ) {
-        Surface(
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            modifier = Modifier.widthIn(max = 280.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = text, style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.width(4.dp))
-                Text("🎤", fontSize = 14.sp)
+            // Force LTR for message content: English text should flow left-to-right
+            // even though the app layout is RTL.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Text(
+                    text  = message.text,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        textDirection = TextDirection.ContentOrLtr
+                    )
+                )
             }
         }
     }
 }
 
+// ── Partial speech bubble (always user = right) ────────────────────────────
+@Composable
+private fun PartialSpeechBubble(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Absolute.Right
+    ) {
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp
+            ),
+            color    = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = text, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.width(4.dp))
+                    Text("🎤", fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+// ── Buddy status bubble (always AI = left) ─────────────────────────────────
 @Composable
 private fun BuddyStatusBubble(voiceState: VoiceState) {
     val infiniteTransition = rememberInfiniteTransition(label = "dot_anim")
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue  = 1f,
+        initialValue  = 0.3f,
+        targetValue   = 1f,
         animationSpec = infiniteRepeatable(
             animation  = tween(600),
             repeatMode = RepeatMode.Reverse
@@ -339,11 +438,13 @@ private fun BuddyStatusBubble(voiceState: VoiceState) {
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start
+        horizontalArrangement = Arrangement.Absolute.Left
     ) {
         Text("🤖", fontSize = 20.sp, modifier = Modifier.padding(end = 4.dp, top = 4.dp))
         Surface(
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+            shape = RoundedCornerShape(
+                topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp
+            ),
             color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
@@ -360,43 +461,66 @@ private fun BuddyStatusBubble(voiceState: VoiceState) {
     }
 }
 
+// ── Voice control bar ──────────────────────────────────────────────────────
 @Composable
 private fun VoiceControlBar(
     voiceState: VoiceState,
+    hasAudioPermission: Boolean,
+    onRequestPermission: () -> Unit,
     onPressDown: () -> Unit,
     onPressUp: () -> Unit
 ) {
     val isListening = voiceState == VoiceState.LISTENING
-
     val scale by animateFloatAsState(
-        targetValue = if (isListening) 1.15f else 1f,
+        targetValue   = if (isListening) 1.15f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "button_scale"
+        label         = "button_scale"
     )
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier       = Modifier.fillMaxWidth(),
         shadowElevation = 8.dp,
-        color = MaterialTheme.colorScheme.surface
+        color          = MaterialTheme.colorScheme.surface
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier              = Modifier.padding(16.dp),
+            horizontalAlignment   = Alignment.CenterHorizontally
         ) {
-            // Status label
+            // ── Permission not granted: show a clear request button ────
+            if (!hasAudioPermission) {
+                Column(
+                    horizontalAlignment   = Alignment.CenterHorizontally,
+                    verticalArrangement   = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "נדרשת גישה למיקרופון כדי לדבר עם Buddy",
+                        style     = MaterialTheme.typography.bodyMedium,
+                        color     = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = onRequestPermission) {
+                        Icon(Icons.Default.Mic, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("אפשר גישה למיקרופון")
+                    }
+                }
+                return@Column
+            }
+
+            // ── Status label ───────────────────────────────────────────
             Text(
                 text = when (voiceState) {
-                    VoiceState.IDLE     -> stringResource(R.string.chat_hold_to_speak)
+                    VoiceState.IDLE      -> stringResource(R.string.chat_hold_to_speak)
                     VoiceState.LISTENING -> stringResource(R.string.chat_listening)
-                    VoiceState.THINKING -> stringResource(R.string.chat_thinking)
-                    VoiceState.SPEAKING -> stringResource(R.string.chat_speaking)
+                    VoiceState.THINKING  -> stringResource(R.string.chat_thinking)
+                    VoiceState.SPEAKING  -> stringResource(R.string.chat_speaking)
                 },
-                style  = MaterialTheme.typography.labelLarge,
-                color  = MaterialTheme.colorScheme.onSurfaceVariant,
+                style    = MaterialTheme.typography.labelLarge,
+                color    = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            // Big push-to-talk button
+            // ── Push-to-talk button ────────────────────────────────────
             val enabled = voiceState == VoiceState.IDLE || voiceState == VoiceState.LISTENING
             Box(
                 modifier = Modifier
@@ -430,7 +554,7 @@ private fun VoiceControlBar(
                         else                 -> Icons.Default.Mic
                     },
                     contentDescription = "Push to talk",
-                    tint = Color.White,
+                    tint     = Color.White,
                     modifier = Modifier.size(36.dp)
                 )
             }

@@ -15,6 +15,7 @@ import com.itsikh.buddy.drive.DriveSyncWorker
 import com.itsikh.buddy.gamification.BadgeEvaluator
 import com.itsikh.buddy.gamification.XpManager
 import com.itsikh.buddy.logging.AppLogger
+import com.itsikh.buddy.security.SecureKeyManager
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
 import android.speech.SpeechRecognizer
 import com.itsikh.buddy.voice.SpeechRecognitionManager
@@ -35,7 +36,8 @@ data class ChatUiState(
     val xpToday: Int                   = 0,
     val newBadges: List<String>        = emptyList(),  // badges earned this session
     val error: String?                 = null,
-    val isSessionActive: Boolean       = false
+    val isSessionActive: Boolean       = false,
+    val noApiKey: Boolean              = false,        // true when no AI provider key is configured
 )
 
 enum class VoiceState {
@@ -48,6 +50,7 @@ enum class VoiceState {
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val secureKeyManager: SecureKeyManager,
     private val profileRepository: ProfileRepository,
     private val conversationRepository: ConversationRepository,
     private val vocabularyRepository: VocabularyRepository,
@@ -93,6 +96,16 @@ class ChatViewModel @Inject constructor(
     /** Called when the user navigates to the chat screen. Starts the session + generates greeting. */
     fun startSession(mode: ChatMode = ChatMode.FREE_CHAT) {
         if (_uiState.value.isSessionActive) return
+
+        // Guard: require at least one AI provider key before starting a session.
+        val hasAiKey = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API) ||
+                       secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API)
+        if (!hasAiKey) {
+            _uiState.update { it.copy(noApiKey = true) }
+            return
+        }
+        _uiState.update { it.copy(noApiKey = false) }
+
         viewModelScope.launch {
             val profile = profileRepository.getProfile() ?: return@launch
             val session = conversationRepository.startSession(profile.id, mode)
@@ -302,6 +315,16 @@ class ChatViewModel @Inject constructor(
             )}
 
             currentSessionLog = null
+        }
+    }
+
+    /** Re-checks API key availability — call when returning from Settings. */
+    fun recheckApiKey() {
+        val hasAiKey = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API) ||
+                       secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API)
+        _uiState.update { it.copy(noApiKey = !hasAiKey) }
+        if (hasAiKey && !_uiState.value.isSessionActive) {
+            startSession(_uiState.value.mode)
         }
     }
 
