@@ -13,11 +13,11 @@ val keystoreProperties = java.util.Properties().apply {
 }
 
 android {
-    namespace = "com.template.app"
+    namespace = "com.itsikh.buddy"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.template.app"
+        applicationId = "com.itsikh.buddy"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
