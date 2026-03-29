@@ -89,16 +89,22 @@ class ConversationManager @Inject constructor(
 
         val greetingPrompt = when {
             memoryContext.isNotBlank() -> """
-                Generate a warm greeting for ${profile.displayName}.
-                START with exactly one short Hebrew sentence to welcome them back (e.g. "יאללה, בוא נדבר אנגלית!").
-                Then switch to English for the rest. Reference one specific thing you know about them.
-                Keep the whole greeting to 2-3 sentences. End with ONE simple English question.
+                Generate a warm bilingual greeting for ${profile.displayName} — mix Hebrew and English naturally.
+                Structure:
+                1. Hebrew welcome back (1 sentence): e.g. "יאללה ${profile.displayName}, כיף שחזרת!"
+                2. English phrase that references something you know about them (short, at their level)
+                3. Hebrew instruction + English prompt for them to say something:
+                   e.g. "עכשיו תגיד לי — say: 'I am happy to be here!'"
+                Keep the whole thing to 3-4 short sentences total.
             """.trimIndent()
             else -> """
-                Generate a warm first-time greeting for ${profile.displayName} who is ${profile.age} years old.
-                START with exactly one short Hebrew sentence so they feel safe (e.g. "שלום! אני Buddy, חבר האנגלית שלך!").
-                Then switch to English: introduce yourself as Buddy and invite them to chat.
-                Keep it to 2-3 sentences total. End with one very simple question in English.
+                Generate a warm bilingual first greeting for ${profile.displayName} (age ${profile.age}).
+                Structure:
+                1. Hebrew intro: "שלום ${profile.displayName}! אני Buddy — החבר האנגלי שלך! 🤖"
+                2. Short English self-intro: "My name is Buddy and I love to chat!"
+                3. Hebrew explanation of what you'll do together: "ביחד נדבר אנגלית — זה כיף, מבטיח!"
+                4. Hebrew instruction + English prompt: "עכשיו תגיד לי — say: 'Hello Buddy!'"
+                Keep it warm, fun, and short. Use emojis.
             """.trimIndent()
         }
 

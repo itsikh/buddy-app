@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -23,12 +22,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsikh.buddy.data.models.ChildProfile
 
-// ── Moods Buddy can be in ─────────────────────────────────────────────────
+// ── Buddy moods — shown in Hebrew since the UI is Hebrew ─────────────────
 private val buddyMoods = listOf(
-    "Excited! 🥳"   to "\"Ready to learn some new words?\"",
-    "Happy! 😊"     to "\"How was your day?\"",
-    "Curious! 🤔"   to "\"Want to explore a story today?\"",
-    "Energetic! ⚡"  to "\"Let's play a word game!\""
+    "נרגש! 🥳"   to "\"מוכן ללמוד מילים חדשות?\"",
+    "שמח! 😊"    to "\"מה שלומך היום?\"",
+    "סקרן! 🤔"   to "\"רוצה לשמוע סיפור מגניב?\"",
+    "אנרגטי! ⚡" to "\"בוא נשחק במשחק מילים!\""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,10 +47,7 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            HomeTopBar(
-                profile    = uiState.profile,
-                onSettings = onSettings
-            )
+            HomeTopBar(profile = uiState.profile, onSettings = onSettings)
         },
         bottomBar = {
             HomeBottomNav(
@@ -71,26 +67,14 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // ── Hero ─────────────────────────────────────────────────────
-            BuddyHero(
-                profileName = uiState.profile?.displayName ?: "",
-                mood        = mood
-            )
-
-            // ── Bento grid ───────────────────────────────────────────────
+            BuddyHero(profileName = uiState.profile?.displayName ?: "", mood = mood)
             BentoGrid(
-                onDailyLesson  = onTalkWithBuddy,
-                onStories      = onStories,
-                onGames        = onGames,
+                onDailyLesson   = onTalkWithBuddy,
+                onStories       = onStories,
+                onGames         = onGames,
                 onTalkWithBuddy = onTalkWithBuddy
             )
-
-            // ── Weekly progress ──────────────────────────────────────────
-            WeeklyProgress(
-                sessions = uiState.weekSessions,
-                goal     = uiState.weekGoal
-            )
-
+            WeeklyProgress(sessions = uiState.weekSessions, goal = uiState.weekGoal)
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -104,16 +88,16 @@ enum class HomeTab { BUDDY, STORIES, GAMES, PROGRESS }
 private fun HomeTopBar(profile: ChildProfile?, onSettings: () -> Unit) {
     TopAppBar(
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Avatar circle
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Box(
                     modifier         = Modifier
                         .size(36.dp)
                         .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                     contentAlignment = Alignment.Center
-                ) {
-                    Text("🤖", fontSize = 18.sp)
-                }
+                ) { Text("🤖", fontSize = 18.sp) }
                 Text(
                     "Buddy English",
                     fontWeight = FontWeight.ExtraBold,
@@ -130,8 +114,8 @@ private fun HomeTopBar(profile: ChildProfile?, onSettings: () -> Unit) {
                     color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
                     Row(
-                        modifier          = Modifier.padding(horizontal = 13.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        modifier              = Modifier.padding(horizontal = 13.dp, vertical = 5.dp),
+                        verticalAlignment     = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Text("⭐", fontSize = 13.sp)
@@ -145,74 +129,59 @@ private fun HomeTopBar(profile: ChildProfile?, onSettings: () -> Unit) {
                 }
             }
             IconButton(onClick = onSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "הגדרות",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "הגדרות",
+                    tint               = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
-        )
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
     )
 }
 
-// ── Buddy hero section ─────────────────────────────────────────────────────
+// ── Hero ───────────────────────────────────────────────────────────────────
 @Composable
 private fun BuddyHero(profileName: String, mood: Pair<String, String>) {
-    val infiniteTransition = rememberInfiniteTransition(label = "hero_breathe")
+    val infiniteTransition = rememberInfiniteTransition(label = "breathe")
     val scale by infiniteTransition.animateFloat(
         initialValue  = 1f,
         targetValue   = 1.05f,
         animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label         = "hero_face_scale"
+        label         = "scale"
     )
 
     Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape    = RoundedCornerShape(22.dp),
+        color    = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier            = Modifier.padding(20.dp, 20.dp, 20.dp, 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Big buddy face with breathing animation
-            Text(
-                text     = "🤖",
-                fontSize = 68.sp,
-                modifier = Modifier.scale(scale)
-            )
-
+            Text("🤖", fontSize = 68.sp, modifier = Modifier.scale(scale))
             Spacer(Modifier.height(10.dp))
 
-            // "BUDDY IS FEELING…" chip
+            // "BUDDY מרגיש..." chip
             Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                shape  = RoundedCornerShape(999.dp),
+                color  = MaterialTheme.colorScheme.surfaceContainerLowest,
                 border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
                 Text(
-                    text     = "BUDDY IS FEELING…",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
-                    fontSize = 9.sp,
+                    text      = "BUDDY מרגיש...",
+                    modifier  = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                    fontSize  = 9.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    color    = MaterialTheme.colorScheme.primary
+                    color     = MaterialTheme.colorScheme.primary
                 )
             }
 
             Spacer(Modifier.height(8.dp))
-
-            // Mood headline
-            Text(
-                text       = mood.first,
-                fontSize   = 26.sp,
-                fontWeight = FontWeight.Black,
-                color      = MaterialTheme.colorScheme.onSurface
-            )
-
+            Text(mood.first, fontSize = 26.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
             Spacer(Modifier.height(4.dp))
-
-            // Buddy quote
             Text(
                 text      = mood.second,
                 fontSize  = 12.sp,
@@ -227,14 +196,14 @@ private fun BuddyHero(profileName: String, mood: Pair<String, String>) {
 // ── Bento grid ─────────────────────────────────────────────────────────────
 @Composable
 private fun BentoGrid(
-    onDailyLesson: () -> Unit,
-    onStories:     () -> Unit,
-    onGames:       () -> Unit,
+    onDailyLesson:   () -> Unit,
+    onStories:       () -> Unit,
+    onGames:         () -> Unit,
     onTalkWithBuddy: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
 
-        // Daily Lesson — full width, golden primary container
+        // שיעור יומי — full width, golden
         BentoCard(
             modifier = Modifier.fillMaxWidth(),
             color    = MaterialTheme.colorScheme.primaryContainer,
@@ -243,40 +212,29 @@ private fun BentoGrid(
             Text("📚", fontSize = 40.sp)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Daily Lesson",
+                "שיעור יומי",
                 fontWeight = FontWeight.ExtraBold,
                 fontSize   = 19.sp,
                 color      = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Text(
-                "Free chat — Let's go!",
-                fontSize  = 11.sp,
+                "שיחה חופשית — קדימה!",
+                fontSize   = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color     = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                color      = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
             )
         }
 
-        // Stories + Games — two half-width cards
+        // Two half cards
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-
-            // Magic Stories — secondary (ocean blue)
-            BentoCard(
-                modifier = Modifier.weight(1f),
-                color    = MaterialTheme.colorScheme.secondaryContainer,
-                onClick  = onStories
-            ) {
-                Surface(
-                    shape  = RoundedCornerShape(12.dp),
-                    color  = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("📖", fontSize = 20.sp)
-                    }
+            // סיפורים קסומים — blue
+            BentoCard(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.secondaryContainer, onClick = onStories) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(40.dp)) {
+                    Box(contentAlignment = Alignment.Center) { Text("📖", fontSize = 20.sp) }
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Magic\nStories",
+                    "סיפורים\nקסומים",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize   = 15.sp,
                     lineHeight = 20.sp,
@@ -284,24 +242,14 @@ private fun BentoGrid(
                 )
             }
 
-            // Word Games — tertiary (coral)
-            BentoCard(
-                modifier = Modifier.weight(1f),
-                color    = MaterialTheme.colorScheme.tertiaryContainer,
-                onClick  = onGames
-            ) {
-                Surface(
-                    shape  = RoundedCornerShape(12.dp),
-                    color  = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("🎮", fontSize = 20.sp)
-                    }
+            // משחקי מילים — coral
+            BentoCard(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.tertiaryContainer, onClick = onGames) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(40.dp)) {
+                    Box(contentAlignment = Alignment.Center) { Text("🎮", fontSize = 20.sp) }
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Word\nGames",
+                    "משחקי\nמילים",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize   = 15.sp,
                     lineHeight = 20.sp,
@@ -310,52 +258,54 @@ private fun BentoGrid(
             }
         }
 
-        // Talk with Buddy — full width, warm surface
-        BentoCard(
-            modifier = Modifier.fillMaxWidth(),
-            color    = MaterialTheme.colorScheme.surfaceContainerHighest,
-            onClick  = onTalkWithBuddy
-        ) {
+        // דבר עם Buddy — full width, warm surface
+        BentoCard(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerHighest, onClick = onTalkWithBuddy) {
+            // In RTL this row: arrow on physical-left, text+icon on physical-right
             Row(
                 modifier              = Modifier.fillMaxWidth(),
+                // Use absoluteLeft/Right so it's fixed regardless of layout direction
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
+                // arrow — use «  for RTL "forward" direction
+                Text(
+                    "«",
+                    fontSize   = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = MaterialTheme.colorScheme.primary
+                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape  = CircleShape,
-                        color  = MaterialTheme.colorScheme.surfaceContainerLowest,
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("🗣️", fontSize = 22.sp)
-                        }
-                    }
-                    Column {
+                    Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            "Talk with Buddy",
+                            "דבר עם Buddy",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize   = 14.sp,
                             color      = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            "Practice speaking now!",
-                            fontSize  = 11.sp,
+                            "תרגל לדבר עכשיו!",
+                            fontSize   = 11.sp,
                             fontWeight = FontWeight.Medium,
-                            color     = MaterialTheme.colorScheme.onSurfaceVariant
+                            color      = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Surface(
+                        shape    = CircleShape,
+                        color    = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) { Text("🗣️", fontSize = 22.sp) }
+                    }
                 }
-                Text("›", fontSize = 22.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
-// ── Reusable bento card with 3-D press feel ────────────────────────────────
+// ── Reusable card with 3-D press ───────────────────────────────────────────
 @Composable
 private fun BentoCard(
     modifier: Modifier = Modifier,
@@ -367,41 +317,39 @@ private fun BentoCard(
     val offsetY by animateFloatAsState(
         targetValue   = if (pressed) 3f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
-        label         = "card_press"
+        label         = "press"
     )
 
     Surface(
         modifier = modifier
             .offset(y = offsetY.dp)
             .clickable(
-                onClick = onClick,
-                indication = null,
+                onClick           = onClick,
+                indication        = null,
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             ),
-        shape          = RoundedCornerShape(18.dp),
-        color          = color,
+        shape           = RoundedCornerShape(18.dp),
+        color           = color,
         shadowElevation = if (pressed) 1.dp else 4.dp
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            content()
-        }
+        Column(modifier = Modifier.padding(18.dp)) { content() }
     }
 }
 
-// ── Weekly progress card ───────────────────────────────────────────────────
+// ── Weekly progress ────────────────────────────────────────────────────────
 @Composable
 private fun WeeklyProgress(sessions: Int, goal: Int) {
     val progress = (sessions.toFloat() / goal.toFloat()).coerceIn(0f, 1f)
-    val animatedProgress by animateFloatAsState(
+    val animProg by animateFloatAsState(
         targetValue   = progress,
         animationSpec = tween(800, easing = FastOutSlowInEasing),
-        label         = "progress_anim"
+        label         = "prog"
     )
 
     Surface(
-        shape  = RoundedCornerShape(18.dp),
-        color  = MaterialTheme.colorScheme.surfaceContainerLowest,
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainerLow),
+        shape    = RoundedCornerShape(18.dp),
+        color    = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border   = BorderStroke(2.dp, MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -411,22 +359,21 @@ private fun WeeklyProgress(sessions: Int, goal: Int) {
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Text(
-                    "🎯 Weekly Goal",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize   = 14.sp,
-                    color      = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "$sessions / $goal days",
+                    "$sessions / $goal ימים",
                     fontWeight = FontWeight.Bold,
                     fontSize   = 12.sp,
                     color      = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "🎯 יעד שבועי",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize   = 14.sp,
+                    color      = MaterialTheme.colorScheme.onSurface
                 )
             }
 
             Spacer(Modifier.height(10.dp))
 
-            // Progress track
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -436,7 +383,7 @@ private fun WeeklyProgress(sessions: Int, goal: Int) {
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(animatedProgress)
+                        .fillMaxWidth(animProg)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(999.dp))
                         .background(MaterialTheme.colorScheme.primaryContainer)
@@ -447,11 +394,11 @@ private fun WeeklyProgress(sessions: Int, goal: Int) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "🎉 שבוע מעולה! You hit your goal!",
-                    fontSize  = 11.sp,
+                    fontSize   = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color     = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    modifier  = Modifier.fillMaxWidth()
+                    color      = MaterialTheme.colorScheme.primary,
+                    textAlign  = TextAlign.Center,
+                    modifier   = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -481,10 +428,10 @@ private fun HomeBottomNav(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment     = Alignment.CenterVertically
         ) {
-            NavItem("🤖", "Buddy",    current == HomeTab.BUDDY,    onBuddy)
-            NavItem("📖", "Stories",  current == HomeTab.STORIES,  onStories)
-            NavItem("🎮", "Games",    current == HomeTab.GAMES,    onGames)
-            NavItem("📈", "Progress", current == HomeTab.PROGRESS, onProgress)
+            NavItem("🤖",  "Buddy",      current == HomeTab.BUDDY,    onBuddy)
+            NavItem("📖",  "סיפורים",   current == HomeTab.STORIES,  onStories)
+            NavItem("🎮",  "משחקים",    current == HomeTab.GAMES,    onGames)
+            NavItem("📈",  "התקדמות",   current == HomeTab.PROGRESS, onProgress)
         }
     }
 }
@@ -504,10 +451,10 @@ private fun NavItem(icon: String, label: String, selected: Boolean, onClick: () 
             Text(icon, fontSize = 20.sp)
             Text(
                 label,
-                fontSize   = 9.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize      = 9.sp,
+                fontWeight    = FontWeight.Bold,
                 letterSpacing = 0.7.sp,
-                color      = if (selected)
+                color         = if (selected)
                     MaterialTheme.colorScheme.onSurface
                 else
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
