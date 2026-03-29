@@ -41,7 +41,7 @@ class GoogleCloudTtsManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "GoogleCloudTtsManager"
-        private const val TTS_URL = "https://texttospeech.googleapis.com/v1beta1/text:synthesize"
+        private const val TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
         private val JSON = "application/json".toMediaType()
 
         // WaveNet voices — primary Hebrew voice since Buddy speaks Hebrew+English mix.
