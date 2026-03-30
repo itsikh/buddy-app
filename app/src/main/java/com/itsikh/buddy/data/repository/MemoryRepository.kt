@@ -31,6 +31,10 @@ class MemoryRepository @Inject constructor(
 
     suspend fun deleteFact(fact: MemoryFact) = dao.delete(fact)
 
+    suspend fun updateFact(fact: MemoryFact, newKey: String, newValue: String) {
+        dao.insertAll(listOf(fact.copy(key = newKey.trim(), value = newValue.trim(), updatedAt = System.currentTimeMillis())))
+    }
+
     suspend fun deleteAllForProfile(profileId: String) = dao.deleteAllForProfile(profileId)
 
     /**

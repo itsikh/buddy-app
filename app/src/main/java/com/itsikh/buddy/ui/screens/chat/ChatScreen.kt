@@ -77,10 +77,6 @@ fun ChatScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.startSession(initialMode)
-    }
-
     DisposableEffect(Unit) {
         onDispose { viewModel.endSession() }
     }
@@ -173,8 +169,10 @@ fun ChatScreen(
 
             // ── Voice control bar ────────────────────────────────────────
             VoiceControlBar(
+                isSessionActive     = uiState.isSessionActive,
                 voiceState          = uiState.voiceState,
                 hasAudioPermission  = hasAudioPermission,
+                onStart             = { viewModel.startSession(uiState.mode) },
                 onRequestPermission = { requestMicPermission.launch(Manifest.permission.RECORD_AUDIO) },
                 onStopSpeaking = { viewModel.stopSpeaking() },
                 onPressDown = {
@@ -718,13 +716,40 @@ private fun ChatTopBar(
 // ── Voice control bar ──────────────────────────────────────────────────────
 @Composable
 private fun VoiceControlBar(
+    isSessionActive: Boolean,
     voiceState: VoiceState,
     hasAudioPermission: Boolean,
+    onStart: () -> Unit,
     onRequestPermission: () -> Unit,
     onStopSpeaking: () -> Unit,
     onPressDown: () -> Unit,
     onPressUp: () -> Unit
 ) {
+    // ── Not started yet: show a big Start button ──────────────────────────
+    if (!isSessionActive) {
+        Surface(
+            modifier        = Modifier.fillMaxWidth(),
+            shadowElevation = 8.dp,
+            color           = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier            = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Button(
+                    onClick  = onStart,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    shape  = MaterialTheme.shapes.large
+                ) {
+                    Text("התחל לדבר עם Buddy ▶", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            }
+        }
+        return
+    }
+
     val isListening = voiceState == VoiceState.LISTENING
     val scale by animateFloatAsState(
         targetValue   = if (isListening) 1.18f else 1f,

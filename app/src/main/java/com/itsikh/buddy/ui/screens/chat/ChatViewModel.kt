@@ -183,7 +183,7 @@ class ChatViewModel @Inject constructor(
         speakingJob?.cancel()
         speakingJob = null
         ttsManager.stopSpeaking()
-        // Reset and restart fresh session in the new mode
+        // Reset session — user must tap Start to begin the new mode
         _uiState.update { it.copy(
             mode            = mode,
             messages        = emptyList(),
@@ -191,7 +191,6 @@ class ChatViewModel @Inject constructor(
             voiceState      = VoiceState.IDLE,
             error           = null
         )}
-        startSession(mode)
     }
 
     /** Called when push-to-talk button is pressed down. */
