@@ -6,12 +6,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.itsikh.buddy.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -148,6 +152,7 @@ fun ChatScreen(
                 messages     = uiState.messages,
                 voiceState   = uiState.voiceState,
                 partialText  = uiState.partialSpeechText,
+                gender       = uiState.profile?.gender ?: "GIRL",
                 onStopSpeaking = { viewModel.stopSpeaking() },
                 modifier     = Modifier.weight(1f)
             )
@@ -193,6 +198,7 @@ private fun ConversationArea(
     messages: List<Message>,
     voiceState: VoiceState,
     partialText: String,
+    gender: String,
     onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -210,8 +216,8 @@ private fun ConversationArea(
         // ── Animated Buddy avatar — tappable to stop when speaking ──────
         BuddyAvatar(
             voiceState     = voiceState,
-            onStopSpeaking = onStopSpeaking,
-            modifier       = Modifier.size(160.dp)
+            gender         = gender,
+            onStopSpeaking = onStopSpeaking
         )
 
         Spacer(Modifier.height(20.dp))
@@ -273,137 +279,111 @@ private fun ConversationArea(
 @Composable
 private fun BuddyAvatar(
     voiceState: VoiceState,
+    gender: String,
     onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "avatar")
 
-    // Breathing scale — always subtle
     val breathe by infiniteTransition.animateFloat(
         initialValue  = 1f,
-        targetValue   = 1.04f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(2200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
+        targetValue   = 1.03f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "breathe"
     )
-
-    // Speaking ring pulse
-    val ringScale by infiniteTransition.animateFloat(
-        initialValue  = 1f,
-        targetValue   = 1.22f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ring"
-    )
     val ringAlpha by infiniteTransition.animateFloat(
-        initialValue  = 0.6f,
+        initialValue  = 0.7f,
         targetValue   = 0f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(700),
-            repeatMode = RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "ring_alpha"
     )
-
-    // Listening red pulse
+    val ringScale by infiniteTransition.animateFloat(
+        initialValue  = 1f,
+        targetValue   = 1.10f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "ring_scale"
+    )
     val listenScale by infiniteTransition.animateFloat(
         initialValue  = 1f,
-        targetValue   = 1.18f,
-        animationSpec = infiniteRepeatable(
-            animation  = tween(400),
-            repeatMode = RepeatMode.Reverse
-        ),
+        targetValue   = 1.07f,
+        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
         label = "listen_scale"
     )
+
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val errorColor       = MaterialTheme.colorScheme.error
 
     Column(
         modifier            = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // "הקש לעצור" label — visible only when speaking
         AnimatedVisibility(visible = voiceState == VoiceState.SPEAKING) {
             Text(
-                text      = "הקש לעצור",
-                fontSize  = 12.sp,
+                text       = "הקש לעצור",
+                fontSize   = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color     = MaterialTheme.colorScheme.primary,
-                modifier  = Modifier.padding(bottom = 4.dp)
+                color      = MaterialTheme.colorScheme.primary,
+                modifier   = Modifier.padding(bottom = 4.dp)
             )
         }
 
+        // Outer container — sized to contain rings + image
         Box(
-            modifier         = Modifier
-                .size(160.dp)
-                .then(
-                    if (voiceState == VoiceState.SPEAKING)
-                        Modifier.clickable(onClick = onStopSpeaking)
-                    else Modifier
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-        // Outer glow ring (speaking)
-        if (voiceState == VoiceState.SPEAKING) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(ringScale)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = ringAlpha),
-                        shape = CircleShape
-                    )
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(0.95f)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        shape = CircleShape
-                    )
-            )
-        }
-
-        // Listening ring (red)
-        if (voiceState == VoiceState.LISTENING) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize(listenScale)
-                    .background(
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.25f),
-                        shape = CircleShape
-                    )
-            )
-        }
-
-        // Face circle
-        val faceColor = when (voiceState) {
-            VoiceState.SPEAKING  -> MaterialTheme.colorScheme.primaryContainer
-            VoiceState.LISTENING -> MaterialTheme.colorScheme.errorContainer
-            VoiceState.THINKING  -> MaterialTheme.colorScheme.secondaryContainer
-            VoiceState.IDLE      -> MaterialTheme.colorScheme.surfaceContainerHighest
-        }
-
-        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .fillMaxSize(0.82f)
-                .scale(if (voiceState == VoiceState.IDLE) breathe else 1f)
-                .background(faceColor, CircleShape)
-                .clip(CircleShape),
-            contentAlignment = Alignment.Center
+                .size(width = 185.dp, height = 215.dp)
+                .then(if (voiceState == VoiceState.SPEAKING) Modifier.clickable { onStopSpeaking() } else Modifier)
         ) {
-            // Face emoji — changes per state
-            val face = when (voiceState) {
-                VoiceState.SPEAKING  -> "🗣️"
-                VoiceState.LISTENING -> "👂"
-                VoiceState.THINKING  -> "🤔"
-                VoiceState.IDLE      -> "🤖"
+            // Speaking: outer pulsing glow ring
+            if (voiceState == VoiceState.SPEAKING) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 165.dp * ringScale, height = 195.dp * ringScale)
+                        .background(primaryContainer.copy(alpha = ringAlpha), RoundedCornerShape(28.dp))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(width = 163.dp, height = 193.dp)
+                        .background(primaryContainer.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
+                )
             }
-            Text(face, fontSize = 64.sp, textAlign = TextAlign.Center)
+
+            // Listening: red glow ring
+            if (voiceState == VoiceState.LISTENING) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 163.dp * listenScale, height = 193.dp * listenScale)
+                        .background(errorColor.copy(alpha = 0.22f), RoundedCornerShape(26.dp))
+                )
+            }
+
+            // Robot image — clip to rounded rectangle, breathe when idle
+            Box(
+                modifier = Modifier
+                    .size(width = 155.dp, height = 185.dp)
+                    .scale(if (voiceState == VoiceState.IDLE) breathe else 1f)
+                    .clip(RoundedCornerShape(20.dp))
+            ) {
+                // Show left half (girl) or right half (boy) by changing alignment
+                Image(
+                    painter        = painterResource(R.drawable.buddy_avatar),
+                    contentDescription = "Buddy",
+                    contentScale   = ContentScale.FillHeight,
+                    alignment      = if (gender == "GIRL") Alignment.CenterStart else Alignment.CenterEnd,
+                    modifier       = Modifier.fillMaxSize()
+                )
+                // State colour overlay
+                val overlay = when (voiceState) {
+                    VoiceState.LISTENING -> errorColor.copy(alpha = 0.10f)
+                    VoiceState.THINKING  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f)
+                    else                 -> Color.Transparent
+                }
+                if (overlay != Color.Transparent) {
+                    Box(Modifier.fillMaxSize().background(overlay))
+                }
+            }
         }
-        } // close clickable Box
-    } // close Column
+    }
 }
 
 // ── Buddy speech bubble ────────────────────────────────────────────────────
