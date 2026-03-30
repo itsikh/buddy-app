@@ -51,14 +51,14 @@ class MemoryExtractor @Inject constructor(
         messages: List<Message>
     ): ExtractionResult {
         if (messages.isEmpty()) {
-            AppLogger.d(TAG, "No messages to extract from — skipping")
+            AppLogger.i(TAG, "No messages to extract from — skipping")
             return ExtractionResult(emptyList(), emptyList(), "")
         }
 
         // Only include turns where the child actually said something meaningful
         val childMessages = messages.filter { it.role == "user" && it.text.trim().length > 2 }
         if (childMessages.isEmpty()) {
-            AppLogger.d(TAG, "No child messages found — skipping extraction")
+            AppLogger.i(TAG, "No child messages found (${messages.size} total msgs) — skipping extraction")
             return ExtractionResult(emptyList(), emptyList(), "")
         }
 
@@ -67,7 +67,7 @@ class MemoryExtractor @Inject constructor(
             "$speaker: ${msg.text}"
         }
 
-        AppLogger.d(TAG, "Extracting from ${messages.size} messages (${childMessages.size} child turns)")
+        AppLogger.i(TAG, "Starting extraction: ${messages.size} messages, ${childMessages.size} child turns")
 
         val systemPrompt = """
             You analyze conversations between an AI called Buddy and a Hebrew-speaking child learning English.
@@ -114,7 +114,7 @@ class MemoryExtractor @Inject constructor(
 
         return try {
             val response = aiRouter.analyze(systemPrompt, conversationText)
-            AppLogger.d(TAG, "Raw extraction response (${response.length} chars): ${response.take(200)}")
+            AppLogger.i(TAG, "AI extraction response (${response.length} chars): ${response.take(300)}")
 
             // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
             val cleaned = response
@@ -171,11 +171,11 @@ class MemoryExtractor @Inject constructor(
                 savedWords++
             }
 
-            AppLogger.i(TAG, "Extraction complete: $savedFacts facts saved, $savedWords words saved, summary=${summary.take(50)}")
+            AppLogger.i(TAG, "Extraction done: $savedFacts facts saved, $savedWords words saved. Facts: ${facts.map { "${it.key}=${it.value}" }}")
             ExtractionResult(facts, words, summary)
 
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Memory extraction failed: ${e.message}", e)
+            AppLogger.e(TAG, "Memory extraction failed: ${e.javaClass.simpleName}: ${e.message}", e)
             ExtractionResult(emptyList(), emptyList(), "")
         }
     }

@@ -25,6 +25,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Dispatchers
 import java.util.UUID
 import javax.inject.Inject
 
@@ -282,6 +283,21 @@ class ChatViewModel @Inject constructor(
             else
                 "בעיית חיבור — נסה שוב"
             _uiState.update { it.copy(voiceState = VoiceState.IDLE, error = errorMsg) }
+        }
+
+        // Run incremental memory extraction every 3 turns so facts accumulate
+        // during the session — not only when the session ends.
+        if (turnCount % 3 == 0) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val recentMessages = conversationRepository.getSessionMessages(session.id)
+                        .takeLast(6) // only the last 6 messages for speed
+                    AppLogger.i(TAG, "Running incremental extraction at turn $turnCount")
+                    memoryExtractor.extractFromSession(profile.id, profile.displayName, recentMessages)
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Incremental extraction failed (non-critical): ${e.message}")
+                }
+            }
         }
     }
 
