@@ -19,6 +19,9 @@ interface SessionLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(log: SessionLog)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(logs: List<SessionLog>)
+
     @Query("""
         UPDATE session_logs
         SET endedAt = :endedAt, durationMinutes = :minutes, turnCount = :turns,

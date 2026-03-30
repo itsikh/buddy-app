@@ -63,5 +63,7 @@ class VocabularyRepository @Inject constructor(
         dao.recordFailure(item.id, newEase, nextDue)
     }
 
+    suspend fun insertAll(items: List<VocabularyItem>) = dao.insertAll(items)
+
     suspend fun deleteAllForProfile(profileId: String) = dao.deleteAllForProfile(profileId)
 }

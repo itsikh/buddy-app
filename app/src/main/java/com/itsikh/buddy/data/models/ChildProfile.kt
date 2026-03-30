@@ -61,5 +61,9 @@ data class ChildProfile(
 
     // ---- Drive sync ----
     val driveAccountEmail: String? = null,
-    val lastDriveSyncAt: Long? = null
+    val lastDriveSyncAt: Long? = null,
+
+    // ---- Buddy Coins ----
+    /** Earned after real engaged sessions (≥10 min). Redeemable for real-world rewards. */
+    val coins: Int = 0
 )

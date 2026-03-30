@@ -16,10 +16,12 @@ package com.itsikh.buddy.drive
  */
 
 data class DriveProfile(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = 2,
     val lastSyncAt: Long = System.currentTimeMillis(),
     val displayName: String,
     val age: Int,
+    val gender: String = "BOY",
+    val namePhonetic: String = "",
     val cefrLevel: String,
     val speakingLevel: String,
     val vocabularyLevel: String,
@@ -28,9 +30,14 @@ data class DriveProfile(
     val createdAt: Long,
     val lastSessionAt: Long?,
     val streakDays: Int,
+    val lastStreakDate: String? = null,
     val longestStreak: Int,
+    val streakShieldsAvailable: Int = 1,
     val xpTotal: Int,
-    val vocabularyMastered: Int
+    val vocabularyMastered: Int,
+    val coins: Int = 0,
+    val onboardingComplete: Boolean = true,
+    val parentConsentGiven: Boolean = true
 )
 
 data class DriveVocabularyItem(
@@ -102,4 +109,5 @@ object DriveFileNames {
     const val MEMORY     = "buddy_memory.json"
     const val SESSIONS   = "buddy_sessions.json"
     const val POLICY     = "buddy_parent_policy.json"
+    const val KEYS       = "buddy_keys.enc"   // AES-256-GCM encrypted API keys
 }

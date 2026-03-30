@@ -32,6 +32,7 @@ class DriveSyncWorker @AssistedInject constructor(
     companion object {
         private const val TAG = "DriveSyncWorker"
         private const val WORK_NAME = "drive_sync"
+        private const val WORK_NAME_STARTUP = "drive_sync_startup"
 
         /** Enqueues a one-time sync with a short delay. Safe to call after every session. */
         fun enqueue(workManager: WorkManager) {
@@ -49,6 +50,28 @@ class DriveSyncWorker @AssistedInject constructor(
             workManager.enqueueUniqueWork(
                 WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
+                request
+            )
+        }
+
+        /**
+         * Enqueues a one-time sync on app launch with no initial delay.
+         * Uses a separate work name so it doesn't cancel a pending post-session sync.
+         * Skipped if a startup sync is already queued or running.
+         */
+        fun enqueueOnStart(workManager: WorkManager) {
+            val request = OneTimeWorkRequestBuilder<DriveSyncWorker>()
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
+                .build()
+
+            workManager.enqueueUniqueWork(
+                WORK_NAME_STARTUP,
+                ExistingWorkPolicy.KEEP,   // don't re-enqueue if already queued/running
                 request
             )
         }

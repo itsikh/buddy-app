@@ -120,6 +120,7 @@ fun ChatScreen(
             ChatTopBar(
                 profile        = uiState.profile,
                 streakDays     = uiState.streakDays,
+                totalCoins     = uiState.totalCoins,
                 currentMode    = uiState.mode,
                 onModeChange   = { viewModel.switchMode(it) },
                 onOpenSettings = onOpenSettings,
@@ -513,6 +514,112 @@ private fun UserEcho(text: String, partial: Boolean, modifier: Modifier = Modifi
     }
 }
 
+// ── Coin Rewards Dialog ────────────────────────────────────────────────────
+
+private data class CoinReward(val coins: Int, val emoji: String, val title: String, val description: String)
+
+private val coinRewards = listOf(
+    CoinReward(100, "🍦", "גלידה לבחירה",           "תבחר איזה גלידה שתרצה!"),
+    CoinReward(200, "🍽️", "לבחור מה לארוחת ערב",   "הערב אתה מחליט מה אוכלים!"),
+    CoinReward(300, "🎮", "Brawl Stars Pass",        "Pass עונה ל-Brawl Stars!"),
+    CoinReward(400, "🎬", "לבחור פעילות לסוף שבוע", "סרט, גן שעשועים — תבחר אתה!"),
+    CoinReward(500, "🌟", "יום כיף מיוחד",           "יום שלם של פעילות לבחירתך!"),
+)
+
+@Composable
+private fun CoinRewardsDialog(totalCoins: Int, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Text("🪙", fontSize = 48.sp)
+                Text(
+                    "$totalCoins מטבעות",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "הצטברו לך $totalCoins מטבעות Buddy!",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "מה אפשר לקבל?",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                coinRewards.forEach { reward ->
+                    val unlocked = totalCoins >= reward.coins
+                    val progress = (totalCoins.toFloat() / reward.coins).coerceAtMost(1f)
+                    Card(
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = if (unlocked) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(reward.emoji, fontSize = 24.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    reward.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (unlocked) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    reward.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (!unlocked) {
+                                    Spacer(Modifier.height(4.dp))
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                    Text(
+                                        "${totalCoins}/${reward.coins} מטבעות",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            if (unlocked) {
+                                Text("✅", fontSize = 20.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "מרוויחים מטבעות על שיחה אמיתית של 10 דקות עם Buddy 🎯",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("סגור") }
+        }
+    )
+}
+
 // ── No API key banner ──────────────────────────────────────────────────────
 @Composable
 private fun NoApiKeyBanner(onOpenSettings: () -> Unit) {
@@ -599,12 +706,18 @@ private fun AdminModelStrip(aiModel: String, ttsBackend: com.itsikh.buddy.voice.
 private fun ChatTopBar(
     profile: com.itsikh.buddy.data.models.ChildProfile?,
     streakDays: Int,
+    totalCoins: Int,
     currentMode: ChatMode,
     onModeChange: (ChatMode) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProgress: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
+    var showCoinDialog by remember { mutableStateOf(false) }
+    if (showCoinDialog) {
+        CoinRewardsDialog(totalCoins = totalCoins, onDismiss = { showCoinDialog = false })
+    }
+
     Column {
         TopAppBar(
             navigationIcon = {
@@ -643,6 +756,30 @@ private fun ChatTopBar(
                             color      = MaterialTheme.colorScheme.primary,
                             fontSize   = 14.sp
                         )
+                    }
+                }
+                // Coin button with badge
+                Box {
+                    IconButton(onClick = { showCoinDialog = true }) {
+                        Text("🪙", fontSize = 22.sp)
+                    }
+                    if (totalCoins > 0) {
+                        Surface(
+                            color  = MaterialTheme.colorScheme.error,
+                            shape  = CircleShape,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(16.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    if (totalCoins > 99) "99+" else totalCoins.toString(),
+                                    fontSize = 7.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onError
+                                )
+                            }
+                        }
                     }
                 }
                 IconButton(onClick = onOpenProgress) {

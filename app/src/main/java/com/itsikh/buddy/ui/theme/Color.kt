@@ -1,61 +1,211 @@
 package com.itsikh.buddy.ui.theme
 
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// ── Primary: Warm Amber-Brown ─────────────────────────────────────────────
-// Used for: primary actions, app title, progress indicators
-val Primary             = Color(0xFF7B5400)
-val OnPrimary           = Color(0xFFFFF1DF)
-val PrimaryContainer    = Color(0xFFFEB300)  // golden yellow — main CTA buttons
-val OnPrimaryContainer  = Color(0xFF523700)
-val PrimaryFixed        = Color(0xFFFEB300)
-val PrimaryFixedDim     = Color(0xFFEDA600)
-
-// ── Secondary: Ocean Blue ─────────────────────────────────────────────────
-// Used for: exploration, stories, informational elements
-val Secondary             = Color(0xFF006384)
-val OnSecondary           = Color(0xFFE6F5FF)
-val SecondaryContainer    = Color(0xFF97DAFF)
-val OnSecondaryContainer  = Color(0xFF004D68)
-
-// ── Tertiary: Coral-Orange ────────────────────────────────────────────────
-// Used for: games, energy, call-to-action variation
-val Tertiary             = Color(0xFFA83206)
-val OnTertiary           = Color(0xFFFFEFEB)
-val TertiaryContainer    = Color(0xFFFF9473)
-val OnTertiaryContainer  = Color(0xFF5F1600)
-
-// ── Background & Surface ──────────────────────────────────────────────────
-// "Sun-Drenched Morning" — warm cream base, no cold greys
-val Background              = Color(0xFFFFF6E1)
-val OnBackground            = Color(0xFF392E00)
-val Surface                 = Color(0xFFFFF6E1)
-val OnSurface               = Color(0xFF392E00)
-val SurfaceBright           = Color(0xFFFFF6E1)
-val SurfaceDim              = Color(0xFFEDD374)
-val SurfaceVariant          = Color(0xFFF5DC81)
-val OnSurfaceVariant        = Color(0xFF695B23)
-
-// ── Surface Containers (Tonal Sculpting) ──────────────────────────────────
-// Layered from lightest → darkest to create depth without shadows
-val SurfaceContainerLowest  = Color(0xFFFFFFFF)  // elevated cards ("lifted")
-val SurfaceContainerLow     = Color(0xFFFFF0C4)  // secondary content areas
-val SurfaceContainer        = Color(0xFFFFE796)  // interactive containers
-val SurfaceContainerHigh    = Color(0xFFFAE18C)  // pressed/active state
-val SurfaceContainerHighest = Color(0xFFF5DC81)  // high-priority modals
-
-// ── Outline ───────────────────────────────────────────────────────────────
-// The "No-Line Rule": outlines only used for focus states, never decoration
-val Outline        = Color(0xFF86763B)
-val OutlineVariant = Color(0xFFBFAC6C)  // ghost border for inputs (40% opacity)
-
-// ── Error ─────────────────────────────────────────────────────────────────
+// ── Shared error colors (all themes) ─────────────────────────────────────────
 val Error             = Color(0xFFB02500)
 val OnError           = Color(0xFFFFEFEC)
 val ErrorContainer    = Color(0xFFF95630)
 val OnErrorContainer  = Color(0xFF520C00)
 
-// ── Inverse ───────────────────────────────────────────────────────────────
-val InverseSurface    = Color(0xFF130E00)
-val InverseOnSurface  = Color(0xFFAE9C5E)
-val InversePrimary    = Color(0xFFFEB300)
+// ─────────────────────────────────────────────────────────────────────────────
+// 🟣 PURPLE — Material3 baseline (default)
+// ─────────────────────────────────────────────────────────────────────────────
+val PurpleScheme: ColorScheme = lightColorScheme(
+    primary                 = Color(0xFF6750A4),
+    onPrimary               = Color(0xFFFFFFFF),
+    primaryContainer        = Color(0xFFEADDFF),
+    onPrimaryContainer      = Color(0xFF21005D),
+    secondary               = Color(0xFF625B71),
+    onSecondary             = Color(0xFFFFFFFF),
+    secondaryContainer      = Color(0xFFE8DEF8),
+    onSecondaryContainer    = Color(0xFF1D192B),
+    tertiary                = Color(0xFF7D5260),
+    onTertiary              = Color(0xFFFFFFFF),
+    tertiaryContainer       = Color(0xFFFFD8E4),
+    onTertiaryContainer     = Color(0xFF31111D),
+    error                   = Error,
+    onError                 = OnError,
+    errorContainer          = ErrorContainer,
+    onErrorContainer        = OnErrorContainer,
+    background              = Color(0xFFFFFBFE),
+    onBackground            = Color(0xFF1C1B1F),
+    surface                 = Color(0xFFFFFBFE),
+    onSurface               = Color(0xFF1C1B1F),
+    surfaceVariant          = Color(0xFFE7E0EC),
+    onSurfaceVariant        = Color(0xFF49454F),
+    outline                 = Color(0xFF79747E),
+    outlineVariant          = Color(0xFFCAC4D0),
+    inverseSurface          = Color(0xFF313033),
+    inverseOnSurface        = Color(0xFFF4EFF4),
+    inversePrimary          = Color(0xFFD0BCFF),
+    surfaceBright           = Color(0xFFFFFBFE),
+    surfaceDim              = Color(0xFFDED8E1),
+    surfaceContainerLowest  = Color(0xFFFFFFFF),
+    surfaceContainerLow     = Color(0xFFF7F2FA),
+    surfaceContainer        = Color(0xFFF3EDF7),
+    surfaceContainerHigh    = Color(0xFFECE6F0),
+    surfaceContainerHighest = Color(0xFFE6E0E9),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🟡 AMBER — "Warm Morning" (original design system)
+// ─────────────────────────────────────────────────────────────────────────────
+val AmberScheme: ColorScheme = lightColorScheme(
+    primary                 = Color(0xFF7B5400),
+    onPrimary               = Color(0xFFFFF1DF),
+    primaryContainer        = Color(0xFFFEB300),
+    onPrimaryContainer      = Color(0xFF523700),
+    secondary               = Color(0xFF006384),
+    onSecondary             = Color(0xFFE6F5FF),
+    secondaryContainer      = Color(0xFF97DAFF),
+    onSecondaryContainer    = Color(0xFF004D68),
+    tertiary                = Color(0xFFA83206),
+    onTertiary              = Color(0xFFFFEFEB),
+    tertiaryContainer       = Color(0xFFFF9473),
+    onTertiaryContainer     = Color(0xFF5F1600),
+    error                   = Error,
+    onError                 = OnError,
+    errorContainer          = ErrorContainer,
+    onErrorContainer        = OnErrorContainer,
+    background              = Color(0xFFFFF6E1),
+    onBackground            = Color(0xFF392E00),
+    surface                 = Color(0xFFFFF6E1),
+    onSurface               = Color(0xFF392E00),
+    surfaceVariant          = Color(0xFFF5DC81),
+    onSurfaceVariant        = Color(0xFF695B23),
+    outline                 = Color(0xFF86763B),
+    outlineVariant          = Color(0xFFBFAC6C),
+    inverseSurface          = Color(0xFF130E00),
+    inverseOnSurface        = Color(0xFFAE9C5E),
+    inversePrimary          = Color(0xFFFEB300),
+    surfaceBright           = Color(0xFFFFF6E1),
+    surfaceDim              = Color(0xFFEDD374),
+    surfaceContainerLowest  = Color(0xFFFFFFFF),
+    surfaceContainerLow     = Color(0xFFFFF0C4),
+    surfaceContainer        = Color(0xFFFFE796),
+    surfaceContainerHigh    = Color(0xFFFAE18C),
+    surfaceContainerHighest = Color(0xFFF5DC81),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔵 OCEAN — calm blue
+// ─────────────────────────────────────────────────────────────────────────────
+val OceanScheme: ColorScheme = lightColorScheme(
+    primary                 = Color(0xFF006590),
+    onPrimary               = Color(0xFFFFFFFF),
+    primaryContainer        = Color(0xFFC5E7FF),
+    onPrimaryContainer      = Color(0xFF001E2C),
+    secondary               = Color(0xFF4D616C),
+    onSecondary             = Color(0xFFFFFFFF),
+    secondaryContainer      = Color(0xFFD0E6F3),
+    onSecondaryContainer    = Color(0xFF081E27),
+    tertiary                = Color(0xFF5B5B7E),
+    onTertiary              = Color(0xFFFFFFFF),
+    tertiaryContainer       = Color(0xFFE1DFFF),
+    onTertiaryContainer     = Color(0xFF181837),
+    error                   = Error,
+    onError                 = OnError,
+    errorContainer          = ErrorContainer,
+    onErrorContainer        = OnErrorContainer,
+    background              = Color(0xFFF5FAFD),
+    onBackground            = Color(0xFF181C1F),
+    surface                 = Color(0xFFF5FAFD),
+    onSurface               = Color(0xFF181C1F),
+    surfaceVariant          = Color(0xFFDCE3E9),
+    onSurfaceVariant        = Color(0xFF40484C),
+    outline                 = Color(0xFF70787D),
+    outlineVariant          = Color(0xFFBFC7CD),
+    inverseSurface          = Color(0xFF2D3134),
+    inverseOnSurface        = Color(0xFFEEF1F5),
+    inversePrimary          = Color(0xFF7FD0FF),
+    surfaceBright           = Color(0xFFF5FAFD),
+    surfaceDim              = Color(0xFFD6DBE0),
+    surfaceContainerLowest  = Color(0xFFFFFFFF),
+    surfaceContainerLow     = Color(0xFFEFF4F8),
+    surfaceContainer        = Color(0xFFE9EFF3),
+    surfaceContainerHigh    = Color(0xFFE3E9EE),
+    surfaceContainerHighest = Color(0xFFDEE3E8),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🌿 FOREST — natural green
+// ─────────────────────────────────────────────────────────────────────────────
+val ForestScheme: ColorScheme = lightColorScheme(
+    primary                 = Color(0xFF386A20),
+    onPrimary               = Color(0xFFFFFFFF),
+    primaryContainer        = Color(0xFFB6F09A),
+    onPrimaryContainer      = Color(0xFF042100),
+    secondary               = Color(0xFF55624C),
+    onSecondary             = Color(0xFFFFFFFF),
+    secondaryContainer      = Color(0xFFD8E7CB),
+    onSecondaryContainer    = Color(0xFF131F0D),
+    tertiary                = Color(0xFF386666),
+    onTertiary              = Color(0xFFFFFFFF),
+    tertiaryContainer       = Color(0xFFBBEBEB),
+    onTertiaryContainer     = Color(0xFF002020),
+    error                   = Error,
+    onError                 = OnError,
+    errorContainer          = ErrorContainer,
+    onErrorContainer        = OnErrorContainer,
+    background              = Color(0xFFF9FCF2),
+    onBackground            = Color(0xFF1A1C18),
+    surface                 = Color(0xFFF9FCF2),
+    onSurface               = Color(0xFF1A1C18),
+    surfaceVariant          = Color(0xFFDFE4D6),
+    onSurfaceVariant        = Color(0xFF43483D),
+    outline                 = Color(0xFF73796C),
+    outlineVariant          = Color(0xFFC3C8BB),
+    inverseSurface          = Color(0xFF2E312D),
+    inverseOnSurface        = Color(0xFFF0F2E9),
+    inversePrimary          = Color(0xFF9BD480),
+    surfaceBright           = Color(0xFFF9FCF2),
+    surfaceDim              = Color(0xFFD9DDD3),
+    surfaceContainerLowest  = Color(0xFFFFFFFF),
+    surfaceContainerLow     = Color(0xFFF3F6EC),
+    surfaceContainer        = Color(0xFFEEF1E7),
+    surfaceContainerHigh    = Color(0xFFE8EBE1),
+    surfaceContainerHighest = Color(0xFFE2E5DB),
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🌸 ROSE — warm pink
+// ─────────────────────────────────────────────────────────────────────────────
+val RoseScheme: ColorScheme = lightColorScheme(
+    primary                 = Color(0xFF9C2E45),
+    onPrimary               = Color(0xFFFFFFFF),
+    primaryContainer        = Color(0xFFFFD9DF),
+    onPrimaryContainer      = Color(0xFF3F0017),
+    secondary               = Color(0xFF715765),
+    onSecondary             = Color(0xFFFFFFFF),
+    secondaryContainer      = Color(0xFFFBD8EA),
+    onSecondaryContainer    = Color(0xFF291521),
+    tertiary                = Color(0xFF7C5635),
+    onTertiary              = Color(0xFFFFFFFF),
+    tertiaryContainer       = Color(0xFFFFD9BB),
+    onTertiaryContainer     = Color(0xFF2E1500),
+    error                   = Error,
+    onError                 = OnError,
+    errorContainer          = ErrorContainer,
+    onErrorContainer        = OnErrorContainer,
+    background              = Color(0xFFFFF8F7),
+    onBackground            = Color(0xFF22181A),
+    surface                 = Color(0xFFFFF8F7),
+    onSurface               = Color(0xFF22181A),
+    surfaceVariant          = Color(0xFFF3DDE0),
+    onSurfaceVariant        = Color(0xFF514344),
+    outline                 = Color(0xFF837374),
+    outlineVariant          = Color(0xFFD5C2C4),
+    inverseSurface          = Color(0xFF38282A),
+    inverseOnSurface        = Color(0xFFFDEDEF),
+    inversePrimary          = Color(0xFFFFB1C1),
+    surfaceBright           = Color(0xFFFFF8F7),
+    surfaceDim              = Color(0xFFE5D6D8),
+    surfaceContainerLowest  = Color(0xFFFFFFFF),
+    surfaceContainerLow     = Color(0xFFFFF0F1),
+    surfaceContainer        = Color(0xFFFAEAEC),
+    surfaceContainerHigh    = Color(0xFFF4E4E6),
+    surfaceContainerHighest = Color(0xFFEFDFE1),
+)

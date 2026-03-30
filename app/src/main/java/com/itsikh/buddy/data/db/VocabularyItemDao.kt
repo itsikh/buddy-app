@@ -27,6 +27,9 @@ interface VocabularyItemDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfAbsent(item: VocabularyItem)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<VocabularyItem>)
+
     @Update
     suspend fun update(item: VocabularyItem)
 

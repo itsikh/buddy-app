@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsikh.buddy.AppConfig
+import com.itsikh.buddy.backup.BuddyKeyBackupManager
 import com.itsikh.buddy.bugreport.GitHubIssuesClient
 import com.itsikh.buddy.data.repository.ConversationRepository
 import com.itsikh.buddy.data.repository.MemoryRepository
@@ -75,6 +76,7 @@ class SettingsViewModel @Inject constructor(
     private val vocabularyRepository: VocabularyRepository,
     private val ttsManager: GoogleCloudTtsManager,
     private val keyValidator: KeyValidator,
+    private val keyBackupManager: BuddyKeyBackupManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -88,8 +90,22 @@ class SettingsViewModel @Inject constructor(
         val saved: Boolean        = false
     )
 
+    data class LevelsState(
+        val overall: String    = "A1",
+        val speaking: String   = "A1",
+        val vocabulary: String = "A1",
+        val grammar: String    = "A1",
+        val xpTotal: Int       = 0,
+        val wordsLearned: Int  = 0,
+        val sessionMinutes: Int = 0,
+        val coins: Int         = 0
+    )
+
     private val _childProfileState = MutableStateFlow(ChildProfileState())
     val childProfileState: StateFlow<ChildProfileState> = _childProfileState.asStateFlow()
+
+    private val _levelsState = MutableStateFlow(LevelsState())
+    val levelsState: StateFlow<LevelsState> = _levelsState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -101,6 +117,18 @@ class SettingsViewModel @Inject constructor(
                         namePhonetic  = profile.namePhonetic,
                         ageText       = profile.age.toString(),
                         gender        = profile.gender
+                    )
+                }
+                _levelsState.update {
+                    it.copy(
+                        overall        = profile.cefrLevel,
+                        speaking       = profile.speakingLevel,
+                        vocabulary     = profile.vocabularyLevel,
+                        grammar        = profile.grammarLevel,
+                        xpTotal        = profile.xpTotal,
+                        wordsLearned   = profile.vocabularyMastered,
+                        sessionMinutes = profile.totalSessionMinutes,
+                        coins          = profile.coins
                     )
                 }
             }
@@ -188,6 +216,23 @@ class SettingsViewModel @Inject constructor(
 
     val autoBackupEnabled: StateFlow<Boolean> = debugSettings.autoBackupEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val appTheme: StateFlow<com.itsikh.buddy.ui.theme.AppTheme> = debugSettings.appTheme
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.itsikh.buddy.ui.theme.AppTheme.PURPLE)
+
+    fun setAppTheme(theme: com.itsikh.buddy.ui.theme.AppTheme) {
+        viewModelScope.launch { debugSettings.setAppTheme(theme) }
+    }
+
+    /** Admin only — set the child's coin balance to an exact value. */
+    fun setCoins(amount: Int) {
+        viewModelScope.launch {
+            val profile = profileRepository.getProfile() ?: return@launch
+            val diff = amount - profile.coins
+            if (diff != 0) profileRepository.addCoins(profile.id, diff)
+            _levelsState.update { it.copy(coins = amount) }
+        }
+    }
 
     // ── GitHub token ──────────────────────────────────────────────────────────
 
@@ -530,6 +575,85 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun getDriveSignInIntent() = driveManager.getSignInClient().signInIntent
+
+    // ── Drive restore ─────────────────────────────────────────────────────────
+
+    sealed class DriveRestoreState {
+        object Idle      : DriveRestoreState()
+        object Restoring : DriveRestoreState()
+        object Done      : DriveRestoreState()
+        data class Error(val message: String) : DriveRestoreState()
+    }
+
+    private val _driveRestoreState = MutableStateFlow<DriveRestoreState>(DriveRestoreState.Idle)
+    val driveRestoreState: StateFlow<DriveRestoreState> = _driveRestoreState.asStateFlow()
+
+    fun restoreFromDrive() {
+        viewModelScope.launch {
+            _driveRestoreState.value = DriveRestoreState.Restoring
+            driveManager.restoreFromDrive().fold(
+                onSuccess = { _driveRestoreState.value = DriveRestoreState.Done },
+                onFailure = { e -> _driveRestoreState.value = DriveRestoreState.Error(e.message ?: "שגיאה") }
+            )
+        }
+    }
+
+    fun resetDriveRestoreState() {
+        _driveRestoreState.value = DriveRestoreState.Idle
+    }
+
+    // ── Key backup (encrypted) ────────────────────────────────────────────────
+
+    sealed class KeyExportState {
+        object Idle      : KeyExportState()
+        object Exporting : KeyExportState()
+        object Done      : KeyExportState()
+        data class Error(val message: String) : KeyExportState()
+    }
+
+    sealed class KeyRestoreState {
+        object Idle      : KeyRestoreState()
+        object Restoring : KeyRestoreState()
+        object Done      : KeyRestoreState()
+        data class Error(val message: String) : KeyRestoreState()
+    }
+
+    private val _keyExportState = MutableStateFlow<KeyExportState>(KeyExportState.Idle)
+    val keyExportState: StateFlow<KeyExportState> = _keyExportState.asStateFlow()
+
+    private val _keyRestoreState = MutableStateFlow<KeyRestoreState>(KeyRestoreState.Idle)
+    val keyRestoreState: StateFlow<KeyRestoreState> = _keyRestoreState.asStateFlow()
+
+    fun exportKeyBackupToUri(uri: Uri, password: String) {
+        viewModelScope.launch {
+            _keyExportState.value = KeyExportState.Exporting
+            try {
+                keyBackupManager.exportSettingsToUri(uri, password)
+                _keyExportState.value = KeyExportState.Done
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Key export failed", e)
+                _keyExportState.value = KeyExportState.Error(e.message ?: "ייצוא נכשל")
+            }
+        }
+    }
+
+    fun restoreKeyBackupFromUri(uri: Uri, password: String) {
+        viewModelScope.launch {
+            _keyRestoreState.value = KeyRestoreState.Restoring
+            try {
+                keyBackupManager.importSettingsFromUri(uri, password)
+                _keyRestoreState.value = KeyRestoreState.Done
+            } catch (e: javax.crypto.AEADBadTagException) {
+                _keyRestoreState.value = KeyRestoreState.Error("סיסמה שגויה")
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Key restore failed", e)
+                _keyRestoreState.value = KeyRestoreState.Error(e.message ?: "שחזור נכשל")
+            }
+        }
+    }
+
+    fun resetKeyExportState() { _keyExportState.value = KeyExportState.Idle }
+    fun resetKeyRestoreState() { _keyRestoreState.value = KeyRestoreState.Idle }
 
     companion object {
         private const val TAG = "SettingsViewModel"

@@ -156,6 +156,28 @@ class GoogleCloudTtsManager @Inject constructor(
         speakWithAndroidTts(text)
     }
 
+    /**
+     * Pre-warms the Google Cloud TTS HTTP connection by synthesizing a very short string
+     * and discarding the audio. Call this early (e.g. on session start) so the first
+     * real [speak] call hits a warm connection instead of paying the TLS handshake penalty.
+     */
+    suspend fun warmUp() {
+        val apiKey = keyManager.getKey(AppConfig.KEY_GOOGLE_TTS) ?: return
+        try {
+            val heVoice = buddyVoice(chirp = true, hebrew = true)
+            val enVoice = buddyVoice(chirp = true, hebrew = false)
+            synthesize(apiKey, "אהלן", heVoice, enVoice)
+            AppLogger.d(TAG, "TTS warm-up done (Chirp3-HD)")
+        } catch (_: Exception) {
+            try {
+                val heVoice = buddyVoice(chirp = false, hebrew = true)
+                val enVoice = buddyVoice(chirp = false, hebrew = false)
+                synthesize(apiKey, "אהלן", heVoice, enVoice)
+                AppLogger.d(TAG, "TTS warm-up done (WaveNet)")
+            } catch (_: Exception) { /* Android TTS needs no warm-up */ }
+        }
+    }
+
     /** Stops any currently playing audio immediately. */
     fun stopSpeaking() {
         currentPlayer.getAndSet(null)?.apply {

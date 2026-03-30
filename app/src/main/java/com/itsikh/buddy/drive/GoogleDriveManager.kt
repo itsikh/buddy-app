@@ -10,6 +10,11 @@ import com.google.android.gms.common.Scopes
 import com.google.gson.Gson
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.data.models.ChildProfile
+import com.itsikh.buddy.data.models.MemoryCategory
+import com.itsikh.buddy.data.models.MemoryFact
+import com.itsikh.buddy.data.models.SessionLog
+import com.itsikh.buddy.data.models.ChatMode
+import com.itsikh.buddy.data.models.VocabularyItem
 import com.itsikh.buddy.data.repository.ConversationRepository
 import com.itsikh.buddy.data.repository.MemoryRepository
 import com.itsikh.buddy.data.repository.ProfileRepository
@@ -23,6 +28,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -126,13 +132,110 @@ class GoogleDriveManager @Inject constructor(
 
             val fileMap = listDriveFiles(token)
 
-            fileMap[DriveFileNames.PROFILE]?.let { fileId ->
-                val content = downloadFile(token, fileId)
-                val driveProfile = gson.fromJson(content, DriveProfile::class.java)
-                // Profile restore is handled by the caller — return the data
-                AppLogger.i(TAG, "Restore: profile found for ${driveProfile.displayName}")
+            if (DriveFileNames.PROFILE !in fileMap) {
+                throw IllegalStateException("No backup found in Drive")
             }
-            Unit
+
+            // Use existing local profile ID if available, otherwise create a new one.
+            // All restored data is attached to this ID.
+            val profileId = profileRepository.getProfile()?.id ?: UUID.randomUUID().toString()
+
+            // ── Restore profile ──────────────────────────────────────────────
+            fileMap[DriveFileNames.PROFILE]?.let { fileId ->
+                val dp = gson.fromJson(downloadFile(token, fileId), DriveProfile::class.java)
+                profileRepository.saveProfile(
+                    ChildProfile(
+                        id                    = profileId,
+                        displayName           = dp.displayName,
+                        age                   = dp.age,
+                        gender                = dp.gender,
+                        namePhonetic          = dp.namePhonetic,
+                        cefrLevel             = dp.cefrLevel,
+                        speakingLevel         = dp.speakingLevel,
+                        vocabularyLevel       = dp.vocabularyLevel,
+                        grammarLevel          = dp.grammarLevel,
+                        totalSessionMinutes   = dp.totalSessionMinutes,
+                        createdAt             = dp.createdAt,
+                        lastSessionAt         = dp.lastSessionAt,
+                        streakDays            = dp.streakDays,
+                        lastStreakDate        = dp.lastStreakDate,
+                        longestStreak         = dp.longestStreak,
+                        streakShieldsAvailable = dp.streakShieldsAvailable,
+                        xpTotal               = dp.xpTotal,
+                        vocabularyMastered    = dp.vocabularyMastered,
+                        coins                 = dp.coins,
+                        onboardingComplete    = dp.onboardingComplete,
+                        parentConsentGiven    = dp.parentConsentGiven
+                    )
+                )
+                AppLogger.i(TAG, "Restore: profile ${dp.displayName}")
+            }
+
+            // ── Restore vocabulary ───────────────────────────────────────────
+            fileMap[DriveFileNames.VOCABULARY]?.let { fileId ->
+                val store = gson.fromJson(downloadFile(token, fileId), DriveVocabularyStore::class.java)
+                vocabularyRepository.deleteAllForProfile(profileId)
+                val items = store.items.map { v ->
+                    VocabularyItem(
+                        profileId        = profileId,
+                        word             = v.word,
+                        definition       = v.definition,
+                        firstSeen        = v.firstSeen,
+                        lastReviewed     = v.lastReviewed,
+                        nextReviewDue    = v.nextReviewDue,
+                        easeFactor       = v.easeFactor,
+                        successfulRecalls = v.successfulRecalls,
+                        failedRecalls    = v.failedRecalls,
+                        masteryLevel     = v.masteryLevel
+                    )
+                }
+                vocabularyRepository.insertAll(items)
+                AppLogger.i(TAG, "Restore: ${items.size} vocabulary items")
+            }
+
+            // ── Restore memory ───────────────────────────────────────────────
+            fileMap[DriveFileNames.MEMORY]?.let { fileId ->
+                val store = gson.fromJson(downloadFile(token, fileId), DriveMemoryStore::class.java)
+                memoryRepository.deleteAllForProfile(profileId)
+                val facts = store.facts.mapNotNull { f ->
+                    runCatching {
+                        MemoryFact(
+                            profileId = profileId,
+                            category  = MemoryCategory.valueOf(f.category),
+                            key       = f.key,
+                            value     = f.value,
+                            updatedAt = f.updatedAt
+                        )
+                    }.getOrNull()
+                }
+                memoryRepository.saveAll(facts)
+                AppLogger.i(TAG, "Restore: ${facts.size} memory facts")
+            }
+
+            // ── Restore sessions ─────────────────────────────────────────────
+            fileMap[DriveFileNames.SESSIONS]?.let { fileId ->
+                val store = gson.fromJson(downloadFile(token, fileId), DriveSessionStore::class.java)
+                conversationRepository.deleteAllForProfile(profileId)
+                val sessions = store.sessions.mapNotNull { s ->
+                    runCatching {
+                        SessionLog(
+                            id                 = s.id,
+                            profileId          = profileId,
+                            mode               = ChatMode.valueOf(s.mode),
+                            startedAt          = s.startedAt,
+                            durationMinutes    = s.durationMinutes,
+                            turnCount          = s.turnCount,
+                            newWordsIntroduced = s.newWordsIntroduced,
+                            sessionSummary     = s.sessionSummary
+                        )
+                    }.getOrNull()
+                }
+                conversationRepository.insertSessionLogs(sessions)
+                AppLogger.i(TAG, "Restore: ${sessions.size} sessions")
+            }
+
+            profileRepository.updateDriveStatus(profileId, getSignedInAccount()?.email)
+            AppLogger.i(TAG, "Drive restore complete")
         }
     }
 
@@ -140,19 +243,26 @@ class GoogleDriveManager @Inject constructor(
 
     private suspend fun uploadProfile(token: String, profile: ChildProfile) {
         val driveProfile = DriveProfile(
-            displayName          = profile.displayName,
-            age                  = profile.age,
-            cefrLevel            = profile.cefrLevel,
-            speakingLevel        = profile.speakingLevel,
-            vocabularyLevel      = profile.vocabularyLevel,
-            grammarLevel         = profile.grammarLevel,
-            totalSessionMinutes  = profile.totalSessionMinutes,
-            createdAt            = profile.createdAt,
-            lastSessionAt        = profile.lastSessionAt,
-            streakDays           = profile.streakDays,
-            longestStreak        = profile.longestStreak,
-            xpTotal              = profile.xpTotal,
-            vocabularyMastered   = profile.vocabularyMastered
+            displayName             = profile.displayName,
+            age                     = profile.age,
+            gender                  = profile.gender,
+            namePhonetic            = profile.namePhonetic,
+            cefrLevel               = profile.cefrLevel,
+            speakingLevel           = profile.speakingLevel,
+            vocabularyLevel         = profile.vocabularyLevel,
+            grammarLevel            = profile.grammarLevel,
+            totalSessionMinutes     = profile.totalSessionMinutes,
+            createdAt               = profile.createdAt,
+            lastSessionAt           = profile.lastSessionAt,
+            streakDays              = profile.streakDays,
+            lastStreakDate          = profile.lastStreakDate,
+            longestStreak           = profile.longestStreak,
+            streakShieldsAvailable  = profile.streakShieldsAvailable,
+            xpTotal                 = profile.xpTotal,
+            vocabularyMastered      = profile.vocabularyMastered,
+            coins                   = profile.coins,
+            onboardingComplete      = profile.onboardingComplete,
+            parentConsentGiven      = profile.parentConsentGiven
         )
         uploadFile(token, DriveFileNames.PROFILE, gson.toJson(driveProfile))
     }

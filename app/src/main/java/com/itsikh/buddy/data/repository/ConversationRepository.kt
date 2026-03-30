@@ -73,6 +73,8 @@ class ConversationRepository @Inject constructor(
     suspend fun pruneOldMessages(profileId: String) =
         messageDao.pruneOldMessages(profileId)
 
+    suspend fun insertSessionLogs(logs: List<SessionLog>) = sessionLogDao.insertAll(logs)
+
     suspend fun deleteAllForProfile(profileId: String) {
         messageDao.deleteAllForProfile(profileId)
         sessionLogDao.deleteAllForProfile(profileId)

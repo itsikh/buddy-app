@@ -104,6 +104,39 @@ class ConversationManager @Inject constructor(
         }
     }
 
+    // ── Engagement evaluation ─────────────────────────────────────────────────
+
+    /**
+     * Asks the AI to judge whether the child's responses in this session were genuine
+     * and engaged (worth awarding coins), or just noise/random input.
+     *
+     * Returns `true` if the session was a real conversation, `false` otherwise.
+     * On any error defaults to `true` (benefit of the doubt).
+     */
+    suspend fun evaluateEngagement(childMessages: List<com.itsikh.buddy.data.models.Message>): Boolean {
+        if (childMessages.isEmpty()) return false
+        val sample = childMessages.takeLast(10).joinToString("\n") { "- ${it.text}" }
+        return try {
+            val result = aiRouter.chat(
+                systemPrompt = "You evaluate whether a child genuinely engaged in a conversation. Answer only YES or NO.",
+                history      = emptyList(),
+                userMessage  = """
+                    A child had a conversation with an English-learning AI.
+                    Here are the child's last responses:
+                    $sample
+
+                    Did the child genuinely try to respond and participate (even if imperfect or short)?
+                    Answer YES if it looks like real effort, NO if it is mostly gibberish, random keys, or single meaningless characters.
+                    Answer only: YES or NO
+                """.trimIndent()
+            )
+            result.trim().uppercase().startsWith("YES")
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "Engagement eval failed (${e.message}), defaulting to true")
+            true // benefit of the doubt on error
+        }
+    }
+
     // ── Greeting ──────────────────────────────────────────────────────────────
 
     suspend fun generateGreeting(profile: ChildProfile, mode: ChatMode): String {
@@ -200,6 +233,11 @@ class ConversationManager @Inject constructor(
 
         // ── First-ever session ──────────────────────────────────────────────
         if (isFirstEver) {
+            val firstModeHint = when (mode) {
+                ChatMode.FREE_CHAT -> "End by asking $name to say: 'Hello!'"
+                ChatMode.STORY_TIME -> "After introducing yourself, immediately start a story: 'היה היה...' and ask 'מה קורה עכשיו?'"
+                ChatMode.ROLE_PLAY -> "After introducing yourself, propose a role-play: 'בוא${if (childIsGirl) "י" else ""} נדמיין — אנחנו...' and open the scene in English."
+            }
             return """
                 Generate the very FIRST greeting between Buddy and $name (age ${profile.age}).
                 They have never spoken before. This is the first meeting.
@@ -210,12 +248,9 @@ class ConversationManager @Inject constructor(
                 - MAX 3 short sentences total. SHORT = 5-8 words each.
                 - Mostly Hebrew (80%), one English phrase.
                 - Introduce yourself as Buddy, $friendWord האנגלי${if (childIsGirl) "ת" else ""} של $name.
-                - End by asking $name to say their first English word: "say: 'Hello!'"
+                - $firstModeHint
                 - Be ENERGETIC. Use 1-2 emojis.
                 - YOU (Buddy) are ${if (buddyIsGirl) "a GIRL" else "a BOY"}: use "אני $buddyHappy", "אני $buddyReady"
-
-                EXAMPLE of style (don't copy — create your own):
-                "${time.hebrewGreeting} $name! 🎉 אני Buddy — $friendWord האנגלי${if (childIsGirl) "ת" else ""} שלך! בוא${if (childIsGirl) "י" else ""} נגיד ביחד: 'Hello!'"
             """.trimIndent()
         }
 
@@ -269,18 +304,41 @@ class ConversationManager @Inject constructor(
             """.trimIndent()
         }
 
+        val modeContext = when (mode) {
+            ChatMode.FREE_CHAT -> ""
+            ChatMode.STORY_TIME -> """
+
+                MODE: STORY TIME session!
+                After the greeting line, IMMEDIATELY open a story — give the first sentence of a new story.
+                Use a dramatic hook: "היה היה..." / "פתאום..." / "בלילה אחד..."
+                Keep it short — just ONE story-starter sentence to pull them in.
+                Then ask: "מה קורה עכשיו?" or "מה הגיבור עושה?"
+                Do NOT mention "mode" or "story time" explicitly — just start telling!
+            """.trimIndent()
+
+            ChatMode.ROLE_PLAY -> """
+
+                MODE: ROLE PLAY session!
+                After the brief greeting, IMMEDIATELY propose one specific scenario and assign roles.
+                Example: "בוא${if (childIsGirl) "י" else ""} נדמיין — אנחנו במסעדה איטלקית. אני המלצר, $name הלקוח${if (childIsGirl) "ה" else ""}. Ready?"
+                Then open the scene IN ENGLISH: "Hello! Welcome! What would you like today?"
+                Pick ONE scenario and commit — pizza restaurant, space mission, pet shop, supermarket, or new kid at school.
+                Do NOT explain the rules — just start the scene!
+            """.trimIndent()
+        }
+
         return """
             Generate a greeting for $name returning to Buddy. Style: $styleSeed/6.
 
             $styleDescription
 
             $continuationHint
+            $modeContext
 
             HARD RULES — DO NOT BREAK:
-            - MAX 2-3 sentences. SHORT sentences (5-8 words each).
-            - 80% Hebrew, 20% English. The English part = what you want them to SAY.
-            - Do NOT use the exact same opening as the style example — create your own variation.
-            - End with asking $name to say one English phrase.
+            - MAX 2-3 sentences total (including story/scene opener if applicable).
+            - SHORT sentences (5-8 words each).
+            - 80% Hebrew, 20% English.
             - 1-2 emojis only.
             - YOU (Buddy) are ${if (buddyIsGirl) "a GIRL — use: אני $buddyHappy, אני $buddyReady" else "a BOY — use: אני $buddyHappy, אני $buddyReady"}.
             - $name is ${if (childIsGirl) "a GIRL — use feminine address" else "a BOY — use masculine address"}.

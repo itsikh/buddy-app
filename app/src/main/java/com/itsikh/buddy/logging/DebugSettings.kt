@@ -50,6 +50,7 @@ class DebugSettings @Inject constructor(
     private val autoUpdateKey = booleanPreferencesKey("auto_update_enabled")
     private val autoBackupKey = booleanPreferencesKey("auto_backup_enabled")
     private val adminModeKey = booleanPreferencesKey("admin_mode_enabled")
+    private val appThemeKey = stringPreferencesKey("app_theme")
 
     /**
      * The current [LogLevel] as a [Flow]. Emits a new value whenever the level changes.
@@ -148,6 +149,27 @@ class DebugSettings @Inject constructor(
     suspend fun setAutoBackupEnabled(enabled: Boolean) {
         context.debugDataStore.edit { prefs ->
             prefs[autoBackupKey] = enabled
+        }
+    }
+
+    /**
+     * The current app color theme. Defaults to [com.itsikh.buddy.ui.theme.AppTheme.PURPLE].
+     */
+    val appTheme: kotlinx.coroutines.flow.Flow<com.itsikh.buddy.ui.theme.AppTheme> =
+        context.debugDataStore.data.map { prefs ->
+            val name = prefs[appThemeKey]
+            if (name != null) {
+                try { com.itsikh.buddy.ui.theme.AppTheme.valueOf(name) }
+                catch (_: IllegalArgumentException) { com.itsikh.buddy.ui.theme.AppTheme.PURPLE }
+            } else {
+                com.itsikh.buddy.ui.theme.AppTheme.PURPLE
+            }
+        }
+
+    /** Persists the app color theme. Call from a coroutine. */
+    suspend fun setAppTheme(theme: com.itsikh.buddy.ui.theme.AppTheme) {
+        context.debugDataStore.edit { prefs ->
+            prefs[appThemeKey] = theme.name
         }
     }
 

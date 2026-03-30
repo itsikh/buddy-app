@@ -19,8 +19,12 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkManager
 import com.itsikh.buddy.bugreport.CrashAutoReporter
+import com.itsikh.buddy.drive.DriveSyncWorker
+import com.itsikh.buddy.logging.DebugSettings
 import com.itsikh.buddy.ui.navigation.AppNavHost
+import com.itsikh.buddy.ui.theme.AppTheme
 import com.itsikh.buddy.ui.theme.BuddyTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -59,12 +63,14 @@ import javax.inject.Inject
 class MainActivity : FragmentActivity() {
 
     @Inject lateinit var crashAutoReporter: CrashAutoReporter
+    @Inject lateinit var debugSettings: DebugSettings
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            BuddyTheme {
+            val theme by debugSettings.appTheme.collectAsState(initial = AppTheme.PURPLE)
+            BuddyTheme(theme = theme) {
                 val mainViewModel: MainViewModel = hiltViewModel()
                 val updatePrompt by mainViewModel.updatePrompt.collectAsState()
 
@@ -109,5 +115,6 @@ class MainActivity : FragmentActivity() {
             }
         }
         lifecycleScope.launch { crashAutoReporter.checkAndReport() }
+        DriveSyncWorker.enqueueOnStart(WorkManager.getInstance(this))
     }
 }

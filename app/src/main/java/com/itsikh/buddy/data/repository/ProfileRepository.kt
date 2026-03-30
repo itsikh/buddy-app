@@ -22,6 +22,8 @@ class ProfileRepository @Inject constructor(
 
     suspend fun addXp(id: String, amount: Int) = dao.addXp(id, amount)
 
+    suspend fun addCoins(id: String, amount: Int) = dao.addCoins(id, amount)
+
     suspend fun recordSessionEnd(id: String, durationMinutes: Int) {
         dao.recordSession(id, System.currentTimeMillis(), durationMinutes)
     }

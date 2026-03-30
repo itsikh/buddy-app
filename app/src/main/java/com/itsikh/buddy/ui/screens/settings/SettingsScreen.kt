@@ -4,9 +4,13 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -41,6 +45,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -71,6 +76,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.itsikh.buddy.AppConfig
 import com.itsikh.buddy.BuildConfig
 import com.itsikh.buddy.security.ClearDataConfirmationDialog
+import com.itsikh.buddy.ui.theme.AppTheme
+import com.itsikh.buddy.ui.theme.colorSchemeFor
 import com.itsikh.buddy.security.KeyValidation
 import com.itsikh.buddy.voice.TtsBackend
 import com.itsikh.buddy.ui.components.SettingsScaffold
@@ -104,6 +111,12 @@ fun SettingsScreen(
     val geminiValidation   by viewModel.geminiValidation.collectAsState()
     val claudeValidation   by viewModel.claudeValidation.collectAsState()
     val ttsValidation      by viewModel.ttsValidation.collectAsState()
+    val appTheme           by viewModel.appTheme.collectAsState()
+    val levelsState        by viewModel.levelsState.collectAsState()
+
+    val keyExportState     by viewModel.keyExportState.collectAsState()
+    val keyRestoreState    by viewModel.keyRestoreState.collectAsState()
+    val driveRestoreState  by viewModel.driveRestoreState.collectAsState()
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
@@ -112,6 +125,25 @@ fun SettingsScreen(
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? -> if (uri != null) viewModel.restoreFromBackup(uri) }
+
+    // Key backup: password entered first, then file picker
+    var pendingKeyExportPassword by remember { mutableStateOf("") }
+    val keyExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null && pendingKeyExportPassword.isNotBlank()) {
+            viewModel.exportKeyBackupToUri(uri, pendingKeyExportPassword)
+        }
+        pendingKeyExportPassword = ""
+    }
+
+    // Key restore: file picked first, then password dialog
+    var pendingKeyRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    val keyRestoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) { pendingKeyRestoreUri = uri }
+    }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -133,7 +165,10 @@ fun SettingsScreen(
     var githubToken           by remember { mutableStateOf("") }
     var tokenVisible          by remember { mutableStateOf(false) }
     var hasToken              by remember { mutableStateOf(viewModel.hasGitHubToken) }
-    var showRestoreDialog      by remember { mutableStateOf(false) }
+    var showRestoreDialog             by remember { mutableStateOf(false) }
+    var showKeyExportPasswordDialog   by remember { mutableStateOf(false) }
+    var showKeyRestorePasswordDialog  by remember { mutableStateOf(false) }
+    var showDriveRestoreDialog        by remember { mutableStateOf(false) }
     var showClearLogsDialog    by remember { mutableStateOf(false) }
     var showClearMemoryDialog  by remember { mutableStateOf(false) }
     var logsCleared           by remember { mutableStateOf(false) }
@@ -144,6 +179,11 @@ fun SettingsScreen(
     var claudeVisible  by remember { mutableStateOf(false) }
     var ttsVisible     by remember { mutableStateOf(false) }
     var buddyGender    by remember { mutableStateOf(viewModel.getBuddyGender()) }
+
+    // When key restore file is picked, show password dialog
+    if (pendingKeyRestoreUri != null && !showKeyRestorePasswordDialog) {
+        showKeyRestorePasswordDialog = true
+    }
 
     Scaffold(
         topBar = {
@@ -196,6 +236,62 @@ fun SettingsScreen(
                 onShowBugButtonToggle = { viewModel.setShowBugButton(it) },
                 debugInfo = modelDebugInfo
             ) {
+
+                // ── 0. Appearance ─────────────────────────────────────────────
+                ExpandableSection(icon = "🎨", title = "מראה — ערכת צבעים") {
+                    Text(
+                        "בחר ערכת צבעים לאפליקציה",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        AppTheme.entries.forEach { theme ->
+                            val scheme = colorSchemeFor(theme)
+                            val isSelected = appTheme == theme
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.setAppTheme(theme) }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .then(
+                                            if (isSelected) Modifier.border(
+                                                3.dp,
+                                                MaterialTheme.colorScheme.primary,
+                                                CircleShape
+                                            ) else Modifier
+                                        )
+                                        .padding(4.dp)
+                                        .size(36.dp)
+                                        .background(scheme.primary, CircleShape)
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    theme.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ── 0b. English Levels ───────────────────────────────────────
+                ExpandableSection(icon = "📚", title = "רמות אנגלית — CEFR") {
+                    LevelsSection(
+                        levelsState = levelsState,
+                        adminMode   = adminMode,
+                        onSetCoins  = { viewModel.setCoins(it) }
+                    )
+                }
 
                 // ── 1. Child Profile ──────────────────────────────────────────
                 ExpandableSection(icon = "👤", title = "פרופיל הילד") {
@@ -484,6 +580,105 @@ fun SettingsScreen(
                             }
                         }
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // ── Encrypted key backup ──────────────────────────────────
+                    Text("מפתחות API (מוצפן)", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "גיבוי מוצפן של כל מפתחות ה-API. לשחזור נדרשת הסיסמה.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    when (val state = keyExportState) {
+                        is SettingsViewModel.KeyExportState.Exporting -> {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(Modifier.size(20.dp))
+                                Text("מייצא…", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        is SettingsViewModel.KeyExportState.Done -> {
+                            Text("מפתחות יוצאו בהצלחה", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                            TextButton(onClick = { viewModel.resetKeyExportState() }, modifier = Modifier.fillMaxWidth()) { Text("אישור") }
+                        }
+                        is SettingsViewModel.KeyExportState.Error -> {
+                            Text("שגיאה: ${state.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { viewModel.resetKeyExportState() }, modifier = Modifier.fillMaxWidth()) { Text("סגור") }
+                        }
+                        else -> {
+                            Button(
+                                onClick = { showKeyExportPasswordDialog = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.CloudUpload, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("ייצא מפתחות (עם סיסמה)")
+                            }
+                        }
+                    }
+
+                    when (val state = keyRestoreState) {
+                        is SettingsViewModel.KeyRestoreState.Restoring -> {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(Modifier.size(20.dp))
+                                Text("משחזר מפתחות…", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        is SettingsViewModel.KeyRestoreState.Done -> {
+                            Text("מפתחות שוחזרו בהצלחה", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                            TextButton(onClick = { viewModel.resetKeyRestoreState() }, modifier = Modifier.fillMaxWidth()) { Text("אישור") }
+                        }
+                        is SettingsViewModel.KeyRestoreState.Error -> {
+                            Text("שגיאה: ${state.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { viewModel.resetKeyRestoreState() }, modifier = Modifier.fillMaxWidth()) { Text("סגור") }
+                        }
+                        else -> {
+                            OutlinedButton(
+                                onClick = {
+                                    keyRestoreLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Download, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("שחזר מפתחות…")
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // ── Drive restore ─────────────────────────────────────────
+                    Text("שחזור מ-Google Drive", style = MaterialTheme.typography.labelLarge)
+                    when (val state = driveRestoreState) {
+                        is SettingsViewModel.DriveRestoreState.Restoring -> {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(Modifier.size(20.dp))
+                                Text("משחזר מ-Drive…", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        is SettingsViewModel.DriveRestoreState.Done -> {
+                            Text("שוחזר מ-Drive בהצלחה", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                            TextButton(onClick = { viewModel.resetDriveRestoreState() }, modifier = Modifier.fillMaxWidth()) { Text("אישור") }
+                        }
+                        is SettingsViewModel.DriveRestoreState.Error -> {
+                            Text("שגיאה: ${state.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { viewModel.resetDriveRestoreState() }, modifier = Modifier.fillMaxWidth()) { Text("סגור") }
+                        }
+                        else -> {
+                            OutlinedButton(
+                                onClick = { showDriveRestoreDialog = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = driveUiState.isSignedIn,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Icon(Icons.Default.RestoreFromTrash, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (driveUiState.isSignedIn) "שחזר מ-Google Drive…" else "נדרש חיבור ל-Google Drive")
+                            }
+                        }
+                    }
                 }
 
                 // ── 6. Support ────────────────────────────────────────────────
@@ -661,6 +856,117 @@ fun SettingsScreen(
         )
     }
 
+    // ── Key export password dialog ─────────────────────────────────────────────
+    if (showKeyExportPasswordDialog) {
+        var exportPwd  by remember { mutableStateOf("") }
+        var exportPwd2 by remember { mutableStateOf("") }
+        var pwdVisible by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { showKeyExportPasswordDialog = false },
+            title = { Text("סיסמה לגיבוי מפתחות") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("בחר סיסמה להצפנת הגיבוי. תזדקק לה לשחזור.")
+                    OutlinedTextField(
+                        value = exportPwd,
+                        onValueChange = { exportPwd = it },
+                        label = { Text("סיסמה") },
+                        visualTransformation = if (pwdVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { pwdVisible = !pwdVisible }) {
+                                Icon(if (pwdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = exportPwd2,
+                        onValueChange = { exportPwd2 = it },
+                        label = { Text("אשר סיסמה") },
+                        visualTransformation = if (pwdVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        isError = exportPwd2.isNotEmpty() && exportPwd != exportPwd2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (exportPwd2.isNotEmpty() && exportPwd != exportPwd2) {
+                        Text("הסיסמאות אינן זהות", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showKeyExportPasswordDialog = false
+                        pendingKeyExportPassword = exportPwd
+                        val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                        keyExportLauncher.launch("buddy_keys_$ts.buddy_keys")
+                    },
+                    enabled = exportPwd.length >= 4 && exportPwd == exportPwd2
+                ) { Text("ייצא") }
+            },
+            dismissButton = { TextButton(onClick = { showKeyExportPasswordDialog = false }) { Text("ביטול") } }
+        )
+    }
+
+    // ── Key restore password dialog ────────────────────────────────────────────
+    if (showKeyRestorePasswordDialog) {
+        var restorePwd by remember { mutableStateOf("") }
+        var pwdVisible by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = {
+                showKeyRestorePasswordDialog = false
+                pendingKeyRestoreUri = null
+            },
+            title = { Text("סיסמה לשחזור מפתחות") },
+            text = {
+                OutlinedTextField(
+                    value = restorePwd,
+                    onValueChange = { restorePwd = it },
+                    label = { Text("סיסמה") },
+                    visualTransformation = if (pwdVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { pwdVisible = !pwdVisible }) {
+                            Icon(if (pwdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val uri = pendingKeyRestoreUri
+                        showKeyRestorePasswordDialog = false
+                        pendingKeyRestoreUri = null
+                        if (uri != null) viewModel.restoreKeyBackupFromUri(uri, restorePwd)
+                    },
+                    enabled = restorePwd.isNotBlank()
+                ) { Text("שחזר") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showKeyRestorePasswordDialog = false
+                    pendingKeyRestoreUri = null
+                }) { Text("ביטול") }
+            }
+        )
+    }
+
+    // ── Drive restore confirmation dialog ──────────────────────────────────────
+    if (showDriveRestoreDialog) {
+        AlertDialog(
+            onDismissRequest = { showDriveRestoreDialog = false },
+            title = { Text("שחזר מ-Google Drive") },
+            text = { Text("זה ימחק את כל הנתונים המקומיים ויחליף בגיבוי מ-Drive. פעולה זו בלתי הפיכה.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDriveRestoreDialog = false
+                    viewModel.restoreFromDrive()
+                }) { Text("שחזר", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDriveRestoreDialog = false }) { Text("ביטול") } }
+        )
+    }
+
     if (showClearMemoryDialog) {
         ClearDataConfirmationDialog(
             title               = "מחק זיכרון AI",
@@ -683,6 +989,173 @@ fun SettingsScreen(
             },
             dismissButton = { TextButton(onClick = { showClearLogsDialog = false }) { Text("ביטול") } }
         )
+    }
+}
+
+// ── CEFR levels info section ──────────────────────────────────────────────────
+
+private data class CefrLevel(
+    val code: String,
+    val name: String,
+    val emoji: String,
+    val description: String,
+    val howToAdvance: String,
+    val order: Int
+)
+
+private val cefrLevels = listOf(
+    CefrLevel(
+        code = "A1", name = "מתחיל", emoji = "🌱",
+        description = "מילים בודדות ומשפטים קצרים מאוד. אוצר מילים של עד 500 מילים. מדבר על עצמו, צבעים, מספרים, בעלי חיים.",
+        howToAdvance = "לדבר עם Buddy לפחות 3 פעמים בשבוע. ללמוד 5 מילים חדשות בכל שיחה.",
+        order = 1
+    ),
+    CefrLevel(
+        code = "A2", name = "בסיסי", emoji = "🌿",
+        description = "משפטים קצרים על נושאים מוכרים. מתאר פעילויות יומיות, תחביבים, משפחה. כ-1,000 מילים.",
+        howToAdvance = "להגיב ב-2-3 מילים לפחות בכל תור. לנסות לבנות משפטים שלמים כמו 'I like...' / 'Yesterday I...'",
+        order = 2
+    ),
+    CefrLevel(
+        code = "B1", name = "בינוני", emoji = "🌳",
+        description = "שיחה על נושאים מגוונים, הבעת דעות ורגשות. מתאר אירועים ומסביר סיבות. כ-2,000 מילים.",
+        howToAdvance = "להשתמש במשפטים מחוברים עם 'because', 'but', 'so'. לנסות role-play ומשחקי תפקידים.",
+        order = 3
+    ),
+    CefrLevel(
+        code = "B2", name = "עצמאי", emoji = "🏆",
+        description = "שיחה שוטפת ורהוטה. מבין טקסטים מורכבים. מכיר כ-4,000 מילים.",
+        howToAdvance = "לדון בנושאים מופשטים ולהביע דעות מורכבות. לקרוא ולספר סיפורים.",
+        order = 4
+    ),
+)
+
+@Composable
+private fun LevelsSection(
+    levelsState: SettingsViewModel.LevelsState,
+    adminMode: Boolean = false,
+    onSetCoins: (Int) -> Unit = {}
+) {
+    var coinEditText by remember(levelsState.coins) { mutableStateOf(levelsState.coins.toString()) }
+
+    // Current levels bar
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "הרמה הנוכחית",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            LevelRow("כולל", levelsState.overall)
+            LevelRow("דיבור", levelsState.speaking)
+            LevelRow("אוצר מילים", levelsState.vocabulary)
+            LevelRow("דקדוק", levelsState.grammar)
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("⭐ ${levelsState.xpTotal} XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("📖 ${levelsState.wordsLearned} מילים", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("⏱ ${levelsState.sessionMinutes} דקות", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("🪙 ${levelsState.coins} מטבעות", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+    }
+
+    // Admin coin editor
+    if (adminMode) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🛡️ עריכת מטבעות (Admin)", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = coinEditText,
+                        onValueChange = { if (it.all { c -> c.isDigit() }) coinEditText = it },
+                        label = { Text("מטבעות") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                    Button(
+                        onClick = { onSetCoins(coinEditText.toIntOrNull() ?: levelsState.coins) },
+                        enabled = coinEditText.toIntOrNull() != null
+                    ) { Text("שמור") }
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "מה כל רמה אומרת?",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurface
+    )
+
+    // CEFR level cards
+    cefrLevels.forEach { level ->
+        val isCurrent = level.code == levelsState.overall
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isCurrent) MaterialTheme.colorScheme.secondaryContainer
+                                 else MaterialTheme.colorScheme.surfaceContainerLow
+            )
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(level.emoji, fontSize = 20.sp)
+                    Text(
+                        "${level.code} — ${level.name}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isCurrent) MaterialTheme.colorScheme.onSecondaryContainer
+                                else MaterialTheme.colorScheme.onSurface
+                    )
+                    if (isCurrent) {
+                        Text(
+                            "← הרמה שלך",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Text(
+                    level.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isCurrent) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "📈 איך מתקדמים: ${level.howToAdvance}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LevelRow(label: String, level: String) {
+    val progress = when (level) {
+        "A1" -> 0.25f; "A2" -> 0.5f; "B1" -> 0.75f; "B2" -> 1f; else -> 0.25f
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.width(80.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.weight(1f).height(6.dp),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+        )
+        Text(level, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.width(24.dp))
     }
 }
 
