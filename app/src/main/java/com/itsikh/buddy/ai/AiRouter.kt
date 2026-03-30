@@ -92,7 +92,7 @@ class AiRouter @Inject constructor(
         if (!geminiKey.isNullOrBlank()) {
             runCatching {
                 val model = com.google.ai.client.generativeai.GenerativeModel(
-                    modelName = "gemini-2.0-flash",
+                    modelName = "gemini-2.5-flash",
                     apiKey    = geminiKey,
                     systemInstruction = com.google.ai.client.generativeai.type.content { text(systemPrompt) }
                 )

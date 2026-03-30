@@ -48,6 +48,7 @@ import com.itsikh.buddy.gamification.BadgeDefinitions
 fun ChatScreen(
     initialMode:    ChatMode = ChatMode.FREE_CHAT,
     onOpenSettings: () -> Unit,
+    onOpenProgress: () -> Unit = {},
     onBack:         (() -> Unit)? = null,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
@@ -123,6 +124,7 @@ fun ChatScreen(
                 currentMode    = uiState.mode,
                 onModeChange   = { viewModel.switchMode(it) },
                 onOpenSettings = onOpenSettings,
+                onOpenProgress = onOpenProgress,
                 onBack         = onBack
             )
         }
@@ -623,6 +625,7 @@ private fun ChatTopBar(
     currentMode: ChatMode,
     onModeChange: (ChatMode) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenProgress: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     Column {
@@ -664,6 +667,9 @@ private fun ChatTopBar(
                             fontSize   = 14.sp
                         )
                     }
+                }
+                IconButton(onClick = onOpenProgress) {
+                    Icon(Icons.Default.BarChart, contentDescription = "התקדמות")
                 }
                 IconButton(onClick = onOpenSettings) {
                     Icon(Icons.Default.Settings, contentDescription = "הגדרות")

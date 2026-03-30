@@ -102,7 +102,7 @@ class ChatViewModel @Inject constructor(
         val activeModel = when {
             defaultProvider == AppConfig.AI_PROVIDER_CLAUDE && !claudeKey.isNullOrBlank() ->
                 "claude-haiku-4-5-20251001"
-            !geminiKey.isNullOrBlank() -> "gemini-2.0-flash"
+            !geminiKey.isNullOrBlank() -> "gemini-2.5-flash"
             !claudeKey.isNullOrBlank() -> "claude-haiku-4-5-20251001"
             else -> "no key"
         }

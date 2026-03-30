@@ -47,7 +47,7 @@ class StartupViewModel @Inject constructor(
         when {
             profile == null || !profile.parentConsentGiven -> "parent_consent"
             !profile.onboardingComplete                    -> "profile_setup"
-            else                                           -> "home"
+            else                                           -> "chat/FREE_CHAT"
         }
     }
 }
@@ -106,7 +106,7 @@ fun AppNavHost() {
             composable("profile_setup") {
                 ProfileSetupScreen(
                     onProfileCreated = {
-                        navController.navigate("home") {
+                        navController.navigate("chat/FREE_CHAT") {
                             popUpTo("profile_setup") { inclusive = true }
                         }
                     }
@@ -131,7 +131,8 @@ fun AppNavHost() {
                 ChatScreen(
                     initialMode    = chatMode,
                     onOpenSettings = { navController.navigate("settings") },
-                    onBack         = { navController.popBackStack() }
+                    onOpenProgress = { navController.navigate("progress") },
+                    onBack         = null
                 )
             }
 
@@ -140,7 +141,8 @@ fun AppNavHost() {
                 ChatScreen(
                     initialMode    = ChatMode.FREE_CHAT,
                     onOpenSettings = { navController.navigate("settings") },
-                    onBack         = { navController.popBackStack() }
+                    onOpenProgress = { navController.navigate("progress") },
+                    onBack         = null
                 )
             }
 
