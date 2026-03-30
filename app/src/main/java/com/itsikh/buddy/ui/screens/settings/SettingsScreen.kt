@@ -416,7 +416,11 @@ fun SettingsScreen(
                                 Text("שגיאה: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
                         } else {
-                            Text("חבר Google Drive לשמירת ההתקדמות של Buddy.", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "חבר Google Drive לגיבוי אוטומטי של ההתקדמות, זיכרון Buddy, ומילים שנלמדו.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(Modifier.height(4.dp))
                             Button(
                                 onClick  = { googleSignInLauncher.launch(viewModel.getDriveSignInIntent()) },
                                 modifier = Modifier.fillMaxWidth()
@@ -424,11 +428,33 @@ fun SettingsScreen(
                                 Text("התחבר עם Google")
                             }
                             driveUiState.syncError?.let { err ->
-                                Text(
-                                    err,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                                Spacer(Modifier.height(4.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer
+                                    )
+                                ) {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            "שגיאת חיבור",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                        Text(
+                                            err,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        if (err.contains("10") || err.contains("DEVELOPER_ERROR", ignoreCase = true) || err.contains("SHA", ignoreCase = true)) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                "פתרון: יש לרשום את ה-SHA-1 של האפליקציה ב-Google Cloud Console תחת OAuth 2.0 → Android app. ודא שה-google-services.json עדכני.",
+                                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

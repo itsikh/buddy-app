@@ -1,7 +1,6 @@
 package com.itsikh.buddy.ai
 
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.itsikh.buddy.data.models.MemoryCategory
 import com.itsikh.buddy.data.models.Message
 import com.itsikh.buddy.data.repository.MemoryRepository
@@ -51,87 +50,132 @@ class MemoryExtractor @Inject constructor(
         childName: String,
         messages: List<Message>
     ): ExtractionResult {
-        if (messages.isEmpty()) return ExtractionResult(emptyList(), emptyList(), "")
+        if (messages.isEmpty()) {
+            AppLogger.d(TAG, "No messages to extract from — skipping")
+            return ExtractionResult(emptyList(), emptyList(), "")
+        }
+
+        // Only include turns where the child actually said something meaningful
+        val childMessages = messages.filter { it.role == "user" && it.text.trim().length > 2 }
+        if (childMessages.isEmpty()) {
+            AppLogger.d(TAG, "No child messages found — skipping extraction")
+            return ExtractionResult(emptyList(), emptyList(), "")
+        }
 
         val conversationText = messages.joinToString("\n") { msg ->
             val speaker = if (msg.role == "user") childName else "Buddy"
             "$speaker: ${msg.text}"
         }
 
-        val systemPrompt = """
-            You are an assistant that analyzes English-learning conversations.
-            You will receive a conversation between an AI (Buddy) and a Hebrew-speaking child learning English.
+        AppLogger.d(TAG, "Extracting from ${messages.size} messages (${childMessages.size} child turns)")
 
-            Extract the following in valid JSON format:
+        val systemPrompt = """
+            You analyze conversations between an AI called Buddy and a Hebrew-speaking child learning English.
+            Extract ALL personal information the child revealed — even small mentions count.
+
+            Return ONLY valid JSON in this exact structure:
             {
               "facts": [
-                {"category": "FAMILY|INTERESTS|ACTIVITIES|SCHOOL|OTHER", "key": "short label", "value": "what was mentioned"}
+                {"category": "FAMILY|INTERESTS|ACTIVITIES|SCHOOL|OTHER", "key": "short label in English", "value": "what was mentioned in English"}
               ],
               "new_english_words": ["word1", "word2"],
-              "hebrew_summary": "2-3 sentence summary in Hebrew for the parent describing what was discussed and any progress"
+              "hebrew_summary": "2-3 sentence summary in Hebrew for parents"
             }
 
-            Categories:
-            - FAMILY: family members, pets
-            - INTERESTS: hobbies, likes, dislikes, favorite things
-            - ACTIVITIES: sports, lessons, regular activities
-            - SCHOOL: grade, subjects, teachers, school events
-            - OTHER: anything else personal
+            CATEGORY GUIDE:
+            - FAMILY: parents, siblings, grandparents, pets, family activities, family members mentioned
+            - INTERESTS: hobbies, favourite things, games, music, movies, characters, books, food preferences
+            - ACTIVITIES: sports, lessons, clubs, after-school activities, weekend activities
+            - SCHOOL: grade level, subjects liked or disliked, teachers mentioned, school events
+            - OTHER: anything else personal — dreams, fears, funny stories, places visited, achievements
 
-            For new_english_words: only include English words the child used or tried to use that seem new or challenging for them.
-            Limit to 5 most significant words. Skip extremely common words (I, you, the, is, etc.).
+            EXTRACTION RULES — be generous, extract everything:
+            - Extract EVERY personal detail, even if mentioned briefly or casually.
+            - If the child mentioned a pet → extract it. A sibling name → extract it. A favourite food → extract it.
+            - Also extract things the child DOESN'T like (key: "dislikes food", value: "broccoli").
+            - Use short, clear English keys: "pet type", "sibling name", "favourite sport", "school grade".
+            - Values should be brief but complete: "a dog named Bobo" not just "dog".
+            - If nothing personal was mentioned at all, return facts as an empty array [].
 
-            For hebrew_summary: write in simple Hebrew. Mention specific topics discussed and any positive moments.
+            FOR new_english_words:
+            - Include English words the child USED or TRIED TO USE during the session.
+            - Include words they learned during this session that were new to them.
+            - Skip extremely basic words (I, you, the, is, a, and).
+            - Limit to the 5 most significant words.
+            - If no notable English words, return [].
 
-            Return ONLY valid JSON, no explanation.
+            FOR hebrew_summary:
+            - 2-3 sentences in natural Hebrew.
+            - Mention topics discussed, something the child shared about themselves, and any English progress.
+            - Example: "היום דיברנו על חיות מחמד ועל הכלב של דני שנקרא בובו. דני שיתף שהוא אוהב כדורגל ומשחק כל יום. הצליח לומר 'my favourite sport is football' בצורה מושלמת!"
+
+            Return ONLY the JSON object. No explanation. No markdown. No code blocks. Just the raw JSON.
         """.trimIndent()
 
         return try {
             val response = aiRouter.analyze(systemPrompt, conversationText)
+            AppLogger.d(TAG, "Raw extraction response (${response.length} chars): ${response.take(200)}")
 
-            // Parse the JSON response
-            val jsonStart = response.indexOf('{')
-            val jsonEnd   = response.lastIndexOf('}') + 1
+            // Strip markdown code blocks if present (```json ... ``` or ``` ... ```)
+            val cleaned = response
+                .replace(Regex("^```(?:json)?\\s*", RegexOption.MULTILINE), "")
+                .replace(Regex("```\\s*$", RegexOption.MULTILINE), "")
+                .trim()
+
+            val jsonStart = cleaned.indexOf('{')
+            val jsonEnd   = cleaned.lastIndexOf('}') + 1
             if (jsonStart < 0 || jsonEnd <= jsonStart) {
-                AppLogger.w(TAG, "Could not find JSON in extraction response")
+                AppLogger.w(TAG, "Could not find JSON in extraction response: ${cleaned.take(100)}")
                 return ExtractionResult(emptyList(), emptyList(), "")
             }
 
-            val jsonStr = response.substring(jsonStart, jsonEnd)
+            val jsonStr = cleaned.substring(jsonStart, jsonEnd)
+            AppLogger.d(TAG, "Parsed JSON: ${jsonStr.take(300)}")
 
             @Suppress("UNCHECKED_CAST")
             val parsed = gson.fromJson(jsonStr, Map::class.java) as Map<String, Any>
 
+            // Parse facts — Gson returns List<LinkedTreeMap<String,Any>> for JSON arrays of objects
             @Suppress("UNCHECKED_CAST")
-            val factsJson = parsed["facts"] as? List<Map<String, String>> ?: emptyList()
-            val facts = factsJson.mapNotNull { f ->
-                val cat = f["category"] ?: return@mapNotNull null
-                val key = f["key"] ?: return@mapNotNull null
-                val value = f["value"] ?: return@mapNotNull null
+            val factsRaw = parsed["facts"] as? List<*> ?: emptyList<Any>()
+            val facts = factsRaw.mapNotNull { item ->
+                val f = item as? Map<*, *> ?: return@mapNotNull null
+                val cat   = f["category"]?.toString() ?: return@mapNotNull null
+                val key   = f["key"]?.toString()      ?: return@mapNotNull null
+                val value = f["value"]?.toString()    ?: return@mapNotNull null
+                if (key.isBlank() || value.isBlank()) return@mapNotNull null
                 ExtractedFact(cat, key, value)
             }
 
+            // Parse new English words — Gson returns List<Any> for JSON string arrays
             @Suppress("UNCHECKED_CAST")
-            val words = parsed["new_english_words"] as? List<String> ?: emptyList()
-            val summary = parsed["hebrew_summary"] as? String ?: ""
+            val wordsRaw = parsed["new_english_words"] as? List<*> ?: emptyList<Any>()
+            val words = wordsRaw.mapNotNull { it?.toString()?.trim()?.lowercase() }
+                .filter { it.isNotBlank() }
+
+            val summary = parsed["hebrew_summary"]?.toString() ?: ""
 
             // Persist facts to DB
+            var savedFacts = 0
             facts.forEach { fact ->
                 val category = runCatching { MemoryCategory.valueOf(fact.category) }
                     .getOrDefault(MemoryCategory.OTHER)
                 memoryRepository.saveFact(profileId, category, fact.key, fact.value)
+                savedFacts++
             }
 
             // Persist new vocabulary
+            var savedWords = 0
             words.forEach { word ->
                 vocabularyRepository.addWordIfNew(profileId, word)
+                savedWords++
             }
 
-            AppLogger.i(TAG, "Extracted ${facts.size} facts, ${words.size} new words")
+            AppLogger.i(TAG, "Extraction complete: $savedFacts facts saved, $savedWords words saved, summary=${summary.take(50)}")
             ExtractionResult(facts, words, summary)
 
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Memory extraction failed: ${e.message}")
+            AppLogger.e(TAG, "Memory extraction failed: ${e.message}", e)
             ExtractionResult(emptyList(), emptyList(), "")
         }
     }

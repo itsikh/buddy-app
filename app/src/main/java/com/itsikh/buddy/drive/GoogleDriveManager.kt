@@ -305,16 +305,33 @@ class GoogleDriveManager @Inject constructor(
      * Gets a fresh OAuth access token for the Drive API.
      * [GoogleAuthUtil.getToken] caches and auto-refreshes tokens — safe to call on every sync.
      * Must run on a background thread (IO dispatcher).
+     *
+     * Handles [com.google.android.gms.auth.UserRecoverableAuthException] by clearing the cached
+     * token and retrying once — this fixes stale tokens after password changes or revoked access.
      */
     private fun getAccessToken(): String? {
         val account = getSignedInAccount() ?: return null
-        val androidAccount = Account(account.email ?: return null, "com.google")
+        val email = account.email ?: run {
+            AppLogger.w(TAG, "Signed-in account has no email — cannot get token")
+            return null
+        }
+        val androidAccount = Account(email, "com.google")
+        val scope = "oauth2:${AppConfig.DRIVE_APPDATA_SCOPE}"
         return try {
-            GoogleAuthUtil.getToken(
-                context,
-                androidAccount,
-                "oauth2:${AppConfig.DRIVE_APPDATA_SCOPE}"
-            )
+            GoogleAuthUtil.getToken(context, androidAccount, scope)
+        } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
+            // Token is stale or consent was revoked — clear cache and retry once
+            AppLogger.w(TAG, "UserRecoverableAuthException — clearing token cache and retrying")
+            try {
+                GoogleAuthUtil.clearToken(context, e.intent?.getStringExtra("authtoken") ?: "")
+                GoogleAuthUtil.getToken(context, androidAccount, scope)
+            } catch (retryEx: Exception) {
+                AppLogger.e(TAG, "Token retry also failed: ${retryEx.message}")
+                null
+            }
+        } catch (e: com.google.android.gms.auth.GoogleAuthException) {
+            AppLogger.e(TAG, "GoogleAuthException (bad account or scope): ${e.message}")
+            null
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to get access token: ${e.message}")
             null
