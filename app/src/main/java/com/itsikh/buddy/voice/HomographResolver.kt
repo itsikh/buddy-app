@@ -130,7 +130,9 @@ class HomographResolver @Inject constructor(
         // Separate leading/trailing punctuation so lookup targets letters only
         val leadPunct  = token.takeWhile  { !it.isLetter() }
         val trailPunct = token.takeLastWhile { !it.isLetter() }
-        val word = token.substring(leadPunct.length, token.length - trailPunct.length)
+        val begin = leadPunct.length
+        val end   = token.length - trailPunct.length
+        val word  = if (begin >= end) "" else token.substring(begin, end)
         if (word.isEmpty()) return token
 
         // Find the entry: try exact match first, then with prefix stripped

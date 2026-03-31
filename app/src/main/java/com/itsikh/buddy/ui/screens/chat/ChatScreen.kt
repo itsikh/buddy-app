@@ -35,7 +35,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
@@ -178,6 +181,40 @@ fun ChatScreen(
                         modifier  = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         textAlign = TextAlign.Center
                     )
+                }
+            }
+
+            // ── Admin debug text input ────────────────────────────────────
+            if (uiState.adminMode && uiState.isSessionActive) {
+                var debugInput by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = debugInput,
+                        onValueChange = { debugInput = it },
+                        placeholder = { Text("🛠 type message…", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = {
+                            if (debugInput.isNotBlank()) {
+                                viewModel.sendTextMessage(debugInput)
+                                debugInput = ""
+                            }
+                        })
+                    )
+                    IconButton(onClick = {
+                        if (debugInput.isNotBlank()) {
+                            viewModel.sendTextMessage(debugInput)
+                            debugInput = ""
+                        }
+                    }) {
+                        Icon(Icons.Default.Send, contentDescription = "Send debug message")
+                    }
                 }
             }
 
@@ -548,8 +585,8 @@ private val coinRewards = listOf(
     CoinReward(100, "🍦", "גלידה לבחירה",           "תבחר איזה גלידה שתרצה!"),
     CoinReward(200, "🍽️", "לבחור מה לארוחת ערב",   "הערב אתה מחליט מה אוכלים!"),
     CoinReward(300, "🎮", "Brawl Stars Pass",        "Pass עונה ל-Brawl Stars!"),
-    CoinReward(400, "🎬", "לבחור פעילות לסוף שבוע", "סרט, גן שעשועים — תבחר אתה!"),
-    CoinReward(500, "🌟", "יום כיף מיוחד",           "יום שלם של פעילות לבחירתך!"),
+    CoinReward(400, "🍬", "ממתקים לבחירה",            "ממתקים שאתה רוצה בשווי 70 שקל"),
+    CoinReward(500, "💵", "100 ₪ לקנות מה שרוצה",   "עם אישור אבא — 100 שקל לקנות כל מה שתרצה!"),
 )
 
 @Composable
