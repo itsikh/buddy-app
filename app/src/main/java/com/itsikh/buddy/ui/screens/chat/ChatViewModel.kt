@@ -17,6 +17,7 @@ import com.itsikh.buddy.gamification.XpManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.security.SecureKeyManager
 import com.itsikh.buddy.logging.DebugSettings
+import com.itsikh.buddy.voice.GeminiSttManager
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
 import com.itsikh.buddy.voice.TtsBackend
 import android.speech.SpeechRecognizer
@@ -70,6 +71,7 @@ class ChatViewModel @Inject constructor(
     private val memoryExtractor: MemoryExtractor,
     private val ttsManager: GoogleCloudTtsManager,
     private val sttManager: SpeechRecognitionManager,
+    private val geminiSttManager: GeminiSttManager,
     private val xpManager: XpManager,
     private val badgeEvaluator: BadgeEvaluator,
     private val workManager: WorkManager,
@@ -212,6 +214,9 @@ class ChatViewModel @Inject constructor(
         )}
     }
 
+    /** Returns true when Gemini STT should be used (key available). */
+    private fun useGeminiStt() = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API)
+
     /** Called when push-to-talk button is pressed down. */
     fun startListening() {
         if (_uiState.value.voiceState == VoiceState.SPEAKING) {
@@ -219,8 +224,16 @@ class ChatViewModel @Inject constructor(
         }
         _uiState.update { it.copy(voiceState = VoiceState.LISTENING, partialSpeechText = "") }
 
-        viewModelScope.launch(Dispatchers.Main) {
+        val sttFlow = if (useGeminiStt()) {
+            AppLogger.d(TAG, "STT: Gemini (bilingual)")
+            geminiSttManager.listen()
+        } else {
+            AppLogger.d(TAG, "STT: Android (English only fallback)")
             sttManager.listen(language = "en-US")
+        }
+
+        viewModelScope.launch(Dispatchers.Main) {
+            sttFlow
                 .catch { e ->
                     AppLogger.e(TAG, "STT flow error: ${e.message}")
                     _uiState.update { it.copy(voiceState = VoiceState.IDLE, error = "בעיה בזיהוי הדיבור — נסה שוב") }
@@ -239,7 +252,7 @@ class ChatViewModel @Inject constructor(
                                           result.code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
                                 "לא שמעתי — נסה שוב"
                             else
-                                "בעיה בזיהוי הדיבור — נסה שוב"
+                                result.message.ifBlank { "בעיה בזיהוי הדיבור — נסה שוב" }
                             _uiState.update { it.copy(voiceState = VoiceState.IDLE, partialSpeechText = "", error = msg) }
                         }
                     }
@@ -247,9 +260,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Called when push-to-talk button is released — STT will finalize naturally. */
+    /** Called when push-to-talk button is released — triggers Gemini transcription or Android STT finalization. */
     fun stopListening() {
-        sttManager.stopListening()
+        if (useGeminiStt()) geminiSttManager.stopListening() else sttManager.stopListening()
     }
 
     fun dismissError() {
@@ -484,6 +497,7 @@ class ChatViewModel @Inject constructor(
         super.onCleared()  // cancels viewModelScope
         ttsManager.stopSpeaking()
         sttManager.destroy()
+        geminiSttManager.destroy()
         if (_uiState.value.isSessionActive) {
             // viewModelScope is already cancelled at this point — use cleanupScope instead
             cleanupScope.launch {
