@@ -24,6 +24,8 @@ class VocabularyRepository @Inject constructor(
 
     suspend fun countMastered(profileId: String): Int = dao.countMastered(profileId)
 
+    suspend fun countTotal(profileId: String): Int = dao.countTotal(profileId)
+
     suspend fun addWordIfNew(profileId: String, word: String, definition: String? = null) {
         val existing = dao.findByWord(profileId, word.lowercase().trim())
         if (existing == null) {

@@ -412,6 +412,9 @@ class ChatViewModel @Inject constructor(
             // Evaluate badges
             val totalSessions = conversationRepository.totalSessionCount(profile.id)
             val vocabMastered = vocabularyRepository.countMastered(profile.id)
+            val vocabTotal    = vocabularyRepository.countTotal(profile.id)
+            // Persist total-words-encountered back to the profile so Settings + Drive stay in sync
+            profileRepository.updateVocabMastered(profile.id, vocabTotal)
             newBadges = badgeEvaluator.evaluate(
                 profile            = updatedProfile,
                 alreadyEarned      = earnedBadgeIds,

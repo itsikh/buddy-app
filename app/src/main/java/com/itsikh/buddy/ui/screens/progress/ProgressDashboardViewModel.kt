@@ -51,7 +51,9 @@ class ProgressDashboardViewModel @Inject constructor(
             }
 
             val totalSessions   = conversationRepository.totalSessionCount(profile.id)
-            val vocabMastered   = vocabularyRepository.countMastered(profile.id)
+            // Show total words encountered (not just SRS-mastered) — words are "learned"
+            // when first used, mastery via garden is a separate progression.
+            val vocabTotal      = vocabularyRepository.countTotal(profile.id)
             val recentSessions  = conversationRepository.getRecentSessions(profile.id, 10)
 
             _uiState.update {
@@ -62,7 +64,7 @@ class ProgressDashboardViewModel @Inject constructor(
                     vocabLevel         = profile.vocabularyLevel,
                     grammarLevel       = profile.grammarLevel,
                     totalSessions      = totalSessions,
-                    vocabularyMastered = vocabMastered,
+                    vocabularyMastered = vocabTotal,
                     totalMinutes       = profile.totalSessionMinutes,
                     xpTotal            = profile.xpTotal,
                     streakDays         = profile.streakDays,

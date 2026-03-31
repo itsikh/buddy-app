@@ -784,22 +784,23 @@ private fun ChatTopBar(
                     }
                 }
                 // Coin button with badge
-                Box {
+                Box(contentAlignment = Alignment.Center) {
                     IconButton(onClick = { showCoinDialog = true }) {
                         Text("🪙", fontSize = 22.sp)
                     }
                     if (totalCoins > 0) {
                         Surface(
-                            color  = MaterialTheme.colorScheme.error,
-                            shape  = CircleShape,
+                            color    = MaterialTheme.colorScheme.error,
+                            shape    = RoundedCornerShape(10.dp),
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .size(16.dp)
+                                .padding(top = 4.dp, end = 2.dp)
+                                .defaultMinSize(minWidth = 20.dp, minHeight = 18.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
                                 Text(
-                                    if (totalCoins > 99) "99+" else totalCoins.toString(),
-                                    fontSize = 7.sp,
+                                    if (totalCoins > 999) "999+" else totalCoins.toString(),
+                                    fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onError
                                 )

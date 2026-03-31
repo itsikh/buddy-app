@@ -28,6 +28,10 @@ class ProfileRepository @Inject constructor(
         dao.recordSession(id, System.currentTimeMillis(), durationMinutes)
     }
 
+    suspend fun updateVocabMastered(id: String, count: Int) {
+        dao.updateVocabMastered(id, count)
+    }
+
     /**
      * Updates the streak for today's session.
      * - If last session was yesterday → increment streak
