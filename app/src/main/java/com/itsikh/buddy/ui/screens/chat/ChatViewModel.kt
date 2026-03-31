@@ -237,7 +237,10 @@ class ChatViewModel @Inject constructor(
             sttManager.listen(language = "en-US")
         }
 
-        viewModelScope.launch(Dispatchers.Main) {
+        // Use Main.immediate so the callbackFlow body (which sets `pending`) runs synchronously
+        // before startListening() returns. Without this, stopListening() can be called while
+        // `pending` is still null, leaving the flow suspended forever in LISTENING state.
+        viewModelScope.launch(Dispatchers.Main.immediate) {
             sttFlow
                 .catch { e ->
                     AppLogger.e(TAG, "STT flow error: ${e.message}")
