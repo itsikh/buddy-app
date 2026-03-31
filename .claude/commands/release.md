@@ -9,13 +9,22 @@ set -euo pipefail
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cd "$(git rev-parse --show-toplevel)"
 
-# ── Read config ───────────────────────────────────────────────────────────────
+# ── Read config (macOS-compatible: sed instead of grep -P) ───────────────────
 APP_CONFIG=$(find app/src -name "AppConfig.kt" | head -1)
-APP_NAME=$(grep 'APP_NAME' "$APP_CONFIG" | grep -oP '"[^"]+"' | tr -d '"')
-RELEASES_OWNER=$(grep 'GITHUB_RELEASES_REPO_OWNER' "$APP_CONFIG" | grep -oP '"[^"]+"' | tr -d '"')
-RELEASES_REPO=$(grep 'GITHUB_RELEASES_REPO_NAME' "$APP_CONFIG" | grep -oP '"[^"]+"' | tr -d '"')
-OLD_CODE=$(grep 'versionCode\s*=' app/build.gradle.kts | grep -oP '\d+')
-OLD_NAME=$(grep 'versionName\s*=' app/build.gradle.kts | grep -oP '"[^"]+"' | tr -d '"')
+APP_NAME=$(grep 'APP_NAME' "$APP_CONFIG" | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+RELEASES_OWNER=$(grep 'GITHUB_RELEASES_REPO_OWNER' "$APP_CONFIG" | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+RELEASES_REPO=$(grep 'GITHUB_RELEASES_REPO_NAME' "$APP_CONFIG" | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+OLD_CODE=$(grep 'versionCode[[:space:]]*=' app/build.gradle.kts | sed 's/[^0-9]*\([0-9]*\).*/\1/' | head -1)
+OLD_NAME=$(grep 'versionName[[:space:]]*=' app/build.gradle.kts | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+
+# ── Validate config was read correctly ───────────────────────────────────────
+[[ -n "$APP_NAME" ]]      || { echo "❌ Could not read APP_NAME from AppConfig.kt";             exit 1; }
+[[ -n "$RELEASES_OWNER" ]] || { echo "❌ Could not read GITHUB_RELEASES_REPO_OWNER from AppConfig.kt"; exit 1; }
+[[ -n "$RELEASES_REPO" ]]  || { echo "❌ Could not read GITHUB_RELEASES_REPO_NAME from AppConfig.kt";  exit 1; }
+[[ -n "$OLD_CODE" ]]       || { echo "❌ Could not read versionCode from build.gradle.kts";     exit 1; }
+[[ -n "$OLD_NAME" ]]       || { echo "❌ Could not read versionName from build.gradle.kts";     exit 1; }
+
+echo "Current: versionCode=$OLD_CODE  versionName=$OLD_NAME  app=$APP_NAME"
 
 # ── Determine new version ────────────────────────────────────────────────────
 NEW_NAME="${ARGUMENTS:-}"
@@ -24,6 +33,8 @@ if [[ -z "$NEW_NAME" ]]; then
   NEW_NAME="$(echo "$OLD_NAME" | cut -d. -f1-2).$((PATCH + 1))"
 fi
 NEW_CODE=$((OLD_CODE + 1))
+
+echo "Releasing: versionCode=$NEW_CODE  versionName=$NEW_NAME"
 
 # ── Pre-flight ────────────────────────────────────────────────────────────────
 [[ -f keystore.properties ]] || { echo "❌ keystore.properties missing"; exit 1; }
@@ -40,6 +51,13 @@ fi
 # ── Bump version ─────────────────────────────────────────────────────────────
 sed -i '' "s/versionCode = ${OLD_CODE}/versionCode = ${NEW_CODE}/" app/build.gradle.kts
 sed -i '' "s/versionName = \"${OLD_NAME}\"/versionName = \"${NEW_NAME}\"/" app/build.gradle.kts
+
+# Verify the bump worked
+ACTUAL_CODE=$(grep 'versionCode[[:space:]]*=' app/build.gradle.kts | sed 's/[^0-9]*\([0-9]*\).*/\1/' | head -1)
+ACTUAL_NAME=$(grep 'versionName[[:space:]]*=' app/build.gradle.kts | sed 's/.*"\([^"]*\)".*/\1/' | head -1)
+[[ "$ACTUAL_CODE" == "$NEW_CODE" ]] || { echo "❌ versionCode bump failed (got $ACTUAL_CODE, expected $NEW_CODE)"; exit 1; }
+[[ "$ACTUAL_NAME" == "$NEW_NAME" ]] || { echo "❌ versionName bump failed (got $ACTUAL_NAME, expected $NEW_NAME)"; exit 1; }
+
 git add app/build.gradle.kts
 git commit -m "chore: release v${NEW_NAME}
 
