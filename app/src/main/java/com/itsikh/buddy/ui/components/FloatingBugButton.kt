@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -61,6 +63,11 @@ fun FloatingBugButton(
     var offsetY by remember { mutableFloatStateOf(400f) }
     var capturing by remember { mutableStateOf(false) }
     val view = LocalView.current
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val buttonSizePx = with(density) { 52.dp.toPx() }
 
     LaunchedEffect(capturing) {
         if (capturing) {
@@ -93,8 +100,8 @@ fun FloatingBugButton(
                             if (totalX > 10f || totalY > 10f) {
                                 isDragging = true
                                 change.consume()
-                                offsetX += delta.x
-                                offsetY += delta.y
+                                offsetX = (offsetX + delta.x).coerceIn(0f, screenWidthPx - buttonSizePx)
+                                offsetY = (offsetY + delta.y).coerceIn(0f, screenHeightPx - buttonSizePx)
                             }
                         } while (event.changes.any { it.pressed })
                         if (!isDragging) {
