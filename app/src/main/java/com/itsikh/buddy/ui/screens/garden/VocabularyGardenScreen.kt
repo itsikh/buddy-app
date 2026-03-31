@@ -6,7 +6,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +32,7 @@ import com.itsikh.buddy.data.models.VocabularyItem
 @Composable
 fun VocabularyGardenScreen(
     onBack: () -> Unit,
+    onStartQuiz: () -> Unit = {},
     viewModel: VocabularyGardenViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -41,7 +43,7 @@ fun VocabularyGardenScreen(
                 title = { Text(stringResource(R.string.garden_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 }
             )
@@ -63,6 +65,21 @@ fun VocabularyGardenScreen(
                 GardenStat("🌸", "${uiState.masteredCount}", "פרחו")
                 GardenStat("🌿", "${uiState.growingCount}", "צומחות")
                 GardenStat("🌱", "${uiState.seedlingCount}", "זרעים")
+            }
+
+            // Practice button
+            if (uiState.items.isNotEmpty()) {
+                Button(
+                    onClick   = onStartQuiz,
+                    modifier  = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = androidx.compose.ui.Modifier.size(20.dp))
+                    Spacer(androidx.compose.ui.Modifier.width(8.dp))
+                    Text("בואו נתרגל מילים! 🎯", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             if (uiState.items.isEmpty()) {

@@ -29,6 +29,7 @@ import com.itsikh.buddy.ui.screens.onboarding.ProfileSetupScreen
 import com.itsikh.buddy.ui.screens.progress.ProgressDashboardScreen
 import com.itsikh.buddy.ui.screens.keypack.KeyPackScreen
 import com.itsikh.buddy.ui.screens.keypack.QrScannerScreen
+import com.itsikh.buddy.ui.screens.garden.WordQuizScreen
 import com.itsikh.buddy.ui.screens.history.ChatHistoryScreen
 import com.itsikh.buddy.ui.screens.settings.SettingsScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -205,7 +206,14 @@ fun AppNavHost() {
             }
 
             composable("garden") {
-                VocabularyGardenScreen(onBack = { navController.popBackStack() })
+                VocabularyGardenScreen(
+                    onBack      = { navController.popBackStack() },
+                    onStartQuiz = { navController.navigate("word_quiz") }
+                )
+            }
+
+            composable("word_quiz") {
+                WordQuizScreen(onBack = { navController.popBackStack() })
             }
 
             // ---- Bug report (existing infrastructure) ----
