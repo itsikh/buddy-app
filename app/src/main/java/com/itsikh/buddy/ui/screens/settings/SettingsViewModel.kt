@@ -447,9 +447,14 @@ class SettingsViewModel @Inject constructor(
 
     // ── Buddy AI API keys ─────────────────────────────────────────────────────
 
-    val hasGeminiKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API)
-    val hasClaudeKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API)
-    val hasGoogleTtsKey: Boolean get() = secureKeyManager.hasKey(AppConfig.KEY_GOOGLE_TTS)
+    private val _hasGeminiKey = MutableStateFlow(secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API))
+    val hasGeminiKey: StateFlow<Boolean> = _hasGeminiKey.asStateFlow()
+
+    private val _hasClaudeKey = MutableStateFlow(secureKeyManager.hasKey(AppConfig.KEY_CLAUDE_API))
+    val hasClaudeKey: StateFlow<Boolean> = _hasClaudeKey.asStateFlow()
+
+    private val _hasGoogleTtsKey = MutableStateFlow(secureKeyManager.hasKey(AppConfig.KEY_GOOGLE_TTS))
+    val hasGoogleTtsKey: StateFlow<Boolean> = _hasGoogleTtsKey.asStateFlow()
 
     /** Actual TTS backend used in the last speak() call — reflects real runtime status. */
     val ttsBackend: StateFlow<TtsBackend> = ttsManager.ttsBackend
@@ -480,6 +485,7 @@ class SettingsViewModel @Inject constructor(
         val trimmed = key.trim()
         if (trimmed.isBlank()) return
         secureKeyManager.saveKey(AppConfig.KEY_GEMINI_API, trimmed)
+        _hasGeminiKey.value = true
         _geminiValidation.value = KeyValidation.Validating
         viewModelScope.launch {
             _geminiValidation.value = keyValidator.validateGemini(trimmed)
@@ -488,6 +494,7 @@ class SettingsViewModel @Inject constructor(
 
     fun clearGeminiKey() {
         secureKeyManager.deleteKey(AppConfig.KEY_GEMINI_API)
+        _hasGeminiKey.value = false
         _geminiValidation.value = KeyValidation.Idle
     }
 
@@ -495,6 +502,7 @@ class SettingsViewModel @Inject constructor(
         val trimmed = key.trim()
         if (trimmed.isBlank()) return
         secureKeyManager.saveKey(AppConfig.KEY_CLAUDE_API, trimmed)
+        _hasClaudeKey.value = true
         _claudeValidation.value = KeyValidation.Validating
         viewModelScope.launch {
             _claudeValidation.value = keyValidator.validateClaude(trimmed)
@@ -503,6 +511,7 @@ class SettingsViewModel @Inject constructor(
 
     fun clearClaudeKey() {
         secureKeyManager.deleteKey(AppConfig.KEY_CLAUDE_API)
+        _hasClaudeKey.value = false
         _claudeValidation.value = KeyValidation.Idle
     }
 
@@ -510,6 +519,7 @@ class SettingsViewModel @Inject constructor(
         val trimmed = key.trim()
         if (trimmed.isBlank()) return
         secureKeyManager.saveKey(AppConfig.KEY_GOOGLE_TTS, trimmed)
+        _hasGoogleTtsKey.value = true
         _ttsValidation.value = KeyValidation.Validating
         viewModelScope.launch {
             _ttsValidation.value = keyValidator.validateGoogleTts(trimmed)
@@ -518,6 +528,7 @@ class SettingsViewModel @Inject constructor(
 
     fun clearGoogleTtsKey() {
         secureKeyManager.deleteKey(AppConfig.KEY_GOOGLE_TTS)
+        _hasGoogleTtsKey.value = false
         _ttsValidation.value = KeyValidation.Idle
     }
 

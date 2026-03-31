@@ -118,6 +118,9 @@ fun SettingsScreen(
     val levelsState        by viewModel.levelsState.collectAsState()
 
     val keyExportState     by viewModel.keyExportState.collectAsState()
+    val hasGeminiKey       by viewModel.hasGeminiKey.collectAsState()
+    val hasClaudeKey       by viewModel.hasClaudeKey.collectAsState()
+    val hasGoogleTtsKey    by viewModel.hasGoogleTtsKey.collectAsState()
     val keyRestoreState    by viewModel.keyRestoreState.collectAsState()
     val driveRestoreState  by viewModel.driveRestoreState.collectAsState()
 
@@ -223,9 +226,9 @@ fun SettingsScreen(
                 "Claude chat" to "claude-haiku-4-5-20251001",
                 "Claude analysis" to "claude-sonnet-4-6",
                 "TTS active" to ttsActive,
-                "Gemini key" to if (viewModel.hasGeminiKey) "✓ set" else "✗ missing",
-                "Claude key" to if (viewModel.hasClaudeKey) "✓ set" else "✗ missing",
-                "Google TTS key" to if (viewModel.hasGoogleTtsKey) "✓ set" else "✗ missing"
+                "Gemini key" to if (hasGeminiKey) "✓ set" else "✗ missing",
+                "Claude key" to if (hasClaudeKey) "✓ set" else "✗ missing",
+                "Google TTS key" to if (hasGoogleTtsKey) "✓ set" else "✗ missing"
             )
 
             SettingsScaffold(
@@ -391,7 +394,7 @@ fun SettingsScreen(
                         hint      = "מופתח ב-aistudio.google.com",
                         value     = geminiKey,
                         visible   = geminiVisible,
-                        hasKey    = viewModel.hasGeminiKey,
+                        hasKey    = hasGeminiKey,
                         validation = geminiValidation,
                         onChange  = { geminiKey = it },
                         onToggleVisibility = { geminiVisible = !geminiVisible },
@@ -406,7 +409,7 @@ fun SettingsScreen(
                         hint      = "מופתח ב-console.anthropic.com",
                         value     = claudeKey,
                         visible   = claudeVisible,
-                        hasKey    = viewModel.hasClaudeKey,
+                        hasKey    = hasClaudeKey,
                         validation = claudeValidation,
                         onChange  = { claudeKey = it },
                         onToggleVisibility = { claudeVisible = !claudeVisible },
@@ -421,7 +424,7 @@ fun SettingsScreen(
                         hint      = "מופתח ב-console.cloud.google.com",
                         value     = googleTtsKey,
                         visible   = ttsVisible,
-                        hasKey    = viewModel.hasGoogleTtsKey,
+                        hasKey    = hasGoogleTtsKey,
                         validation = ttsValidation,
                         onChange  = { googleTtsKey = it },
                         onToggleVisibility = { ttsVisible = !ttsVisible },

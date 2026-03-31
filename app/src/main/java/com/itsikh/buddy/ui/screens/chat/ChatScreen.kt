@@ -32,8 +32,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -187,6 +189,16 @@ fun ChatScreen(
             // ── Admin debug text input ────────────────────────────────────
             if (uiState.adminMode && uiState.isSessionActive) {
                 var debugInput by remember { mutableStateOf("") }
+                val focusManager = LocalFocusManager.current
+                val keyboardController = LocalSoftwareKeyboardController.current
+                val sendDebugMessage = {
+                    if (debugInput.isNotBlank()) {
+                        viewModel.sendTextMessage(debugInput)
+                        debugInput = ""
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -200,19 +212,9 @@ fun ChatScreen(
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = {
-                            if (debugInput.isNotBlank()) {
-                                viewModel.sendTextMessage(debugInput)
-                                debugInput = ""
-                            }
-                        })
+                        keyboardActions = KeyboardActions(onSend = { sendDebugMessage() })
                     )
-                    IconButton(onClick = {
-                        if (debugInput.isNotBlank()) {
-                            viewModel.sendTextMessage(debugInput)
-                            debugInput = ""
-                        }
-                    }) {
+                    IconButton(onClick = sendDebugMessage) {
                         Icon(Icons.Default.Send, contentDescription = "Send debug message")
                     }
                 }
