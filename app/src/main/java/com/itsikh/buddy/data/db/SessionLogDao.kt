@@ -46,6 +46,12 @@ interface SessionLogDao {
     @Query("SELECT SUM(durationMinutes) FROM session_logs WHERE profileId = :profileId")
     suspend fun totalMinutes(profileId: String): Int?
 
+    @Query("SELECT * FROM session_logs WHERE profileId = :profileId AND startedAt >= :since ORDER BY startedAt DESC")
+    suspend fun getSessionsSince(profileId: String, since: Long): List<SessionLog>
+
+    @Query("DELETE FROM session_logs WHERE profileId = :profileId AND startedAt < :before")
+    suspend fun deleteSessionsBefore(profileId: String, before: Long)
+
     @Query("DELETE FROM session_logs WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: String)
 }

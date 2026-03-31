@@ -46,6 +46,10 @@ data class ChatUiState(
     val activeAiModel: String          = "",
     val totalCoins: Int                = 0,
     val coinsEarnedThisSession: Int    = 0,
+    // Buddy's current text — set immediately when speaking starts so it shows
+    // without waiting for the Room Flow to deliver the message. Cleared when
+    // the next user turn begins (at which point lastBuddy in messages is set).
+    val currentBuddyText: String?      = null,
 )
 
 enum class VoiceState {
@@ -268,7 +272,7 @@ class ChatViewModel @Inject constructor(
         val profile = profileRepository.getProfile() ?: return
         val session = currentSessionLog ?: return
 
-        // Save user message to DB
+        // Save user message to DB; clear currentBuddyText so it transitions cleanly
         val userMsg = Message(
             profileId = profile.id,
             sessionId = session.id,
@@ -276,6 +280,7 @@ class ChatViewModel @Inject constructor(
             text      = text
         )
         conversationRepository.addMessage(userMsg)
+        _uiState.update { it.copy(currentBuddyText = null) }
         turnCount++
 
         try {
@@ -325,8 +330,9 @@ class ChatViewModel @Inject constructor(
         )
         conversationRepository.addMessage(assistantMsg)
 
-        // TTS handles language detection internally via SSML <lang> tags
-        _uiState.update { it.copy(voiceState = VoiceState.SPEAKING) }
+        // Fix Bug #11: set currentBuddyText immediately so the speech bubble shows
+        // without waiting for the Room Flow to deliver the DB update.
+        _uiState.update { it.copy(voiceState = VoiceState.SPEAKING, currentBuddyText = text) }
         speakingJob = viewModelScope.launch {
             ttsManager.speak(text)
             _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
@@ -392,7 +398,7 @@ class ChatViewModel @Inject constructor(
                 val childMessages = sessionMessages.filter { it.role == "user" }
                 val isGenuine = conversationManager.evaluateEngagement(childMessages)
                 if (isGenuine) {
-                    val sessionCoins = (durationMinutes * 1.5).toInt().coerceAtMost(20)
+                    val sessionCoins = (durationMinutes * 0.5).toInt().coerceAtMost(7)
                     coinsEarned += sessionCoins
                     AppLogger.i(TAG, "Genuine session: ${durationMinutes}min → $sessionCoins coins")
                 } else {
@@ -431,6 +437,10 @@ class ChatViewModel @Inject constructor(
 
             // Trigger Drive sync (also persists coins)
             DriveSyncWorker.enqueue(workManager)
+
+            // Prune history older than the configured depth
+            val keepDays = debugSettings.historyDepthDays.first()
+            conversationRepository.pruneOldHistory(profile.id, keepDays)
 
             AppLogger.i(TAG, "Session ended: ${durationMinutes}min, ${newWordsThisSession} new words, ${newBadges.size} badges, $coinsEarned coins")
         } catch (e: Exception) {

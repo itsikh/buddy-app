@@ -29,6 +29,7 @@ import com.itsikh.buddy.ui.screens.onboarding.ProfileSetupScreen
 import com.itsikh.buddy.ui.screens.progress.ProgressDashboardScreen
 import com.itsikh.buddy.ui.screens.keypack.KeyPackScreen
 import com.itsikh.buddy.ui.screens.keypack.QrScannerScreen
+import com.itsikh.buddy.ui.screens.history.ChatHistoryScreen
 import com.itsikh.buddy.ui.screens.settings.SettingsScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.map
@@ -134,6 +135,7 @@ fun AppNavHost() {
                     initialMode    = chatMode,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
+                    onOpenHistory  = { navController.navigate("chat_history") },
                     onBack         = null
                 )
             }
@@ -144,6 +146,7 @@ fun AppNavHost() {
                     initialMode    = ChatMode.FREE_CHAT,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
+                    onOpenHistory  = { navController.navigate("chat_history") },
                     onBack         = null
                 )
             }
@@ -185,6 +188,11 @@ fun AppNavHost() {
                     },
                     onBack = { navController.popBackStack() }
                 )
+            }
+
+            // ---- Chat history ----
+            composable("chat_history") {
+                ChatHistoryScreen(onBack = { navController.popBackStack() })
             }
 
             // ---- Parent-gated screens ----

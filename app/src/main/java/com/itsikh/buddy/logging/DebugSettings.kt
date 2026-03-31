@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -51,6 +52,7 @@ class DebugSettings @Inject constructor(
     private val autoBackupKey = booleanPreferencesKey("auto_backup_enabled")
     private val adminModeKey = booleanPreferencesKey("admin_mode_enabled")
     private val appThemeKey = stringPreferencesKey("app_theme")
+    private val historyDepthDaysKey = intPreferencesKey("history_depth_days")
 
     /**
      * The current [LogLevel] as a [Flow]. Emits a new value whenever the level changes.
@@ -170,6 +172,21 @@ class DebugSettings @Inject constructor(
     suspend fun setAppTheme(theme: com.itsikh.buddy.ui.theme.AppTheme) {
         context.debugDataStore.edit { prefs ->
             prefs[appThemeKey] = theme.name
+        }
+    }
+
+    /**
+     * How many days of chat history to retain and display. Defaults to 30.
+     * Supported values: 7, 14, 30, or Int.MAX_VALUE (unlimited).
+     */
+    val historyDepthDays: Flow<Int> = context.debugDataStore.data.map { prefs ->
+        prefs[historyDepthDaysKey] ?: 30
+    }
+
+    /** Persists the history depth. Call from a coroutine. */
+    suspend fun setHistoryDepthDays(days: Int) {
+        context.debugDataStore.edit { prefs ->
+            prefs[historyDepthDaysKey] = days
         }
     }
 

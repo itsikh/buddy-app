@@ -114,6 +114,7 @@ fun SettingsScreen(
     val claudeValidation   by viewModel.claudeValidation.collectAsState()
     val ttsValidation      by viewModel.ttsValidation.collectAsState()
     val appTheme           by viewModel.appTheme.collectAsState()
+    val historyDepthDays   by viewModel.historyDepthDays.collectAsState()
     val levelsState        by viewModel.levelsState.collectAsState()
 
     val keyExportState     by viewModel.keyExportState.collectAsState()
@@ -286,7 +287,27 @@ fun SettingsScreen(
                     }
                 }
 
-                // ── 0b. English Levels ───────────────────────────────────────
+                // ── 0b. History depth ────────────────────────────────────────
+                ExpandableSection(icon = "📋", title = "היסטוריית שיחות") {
+                    Text(
+                        "כמה ימים לשמור היסטוריה",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val depthOptions = listOf(7 to "7 ימים", 14 to "14 ימים", 30 to "30 ימים")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        depthOptions.forEach { (days, label) ->
+                            FilterChip(
+                                selected = historyDepthDays == days,
+                                onClick  = { viewModel.setHistoryDepthDays(days) },
+                                label    = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+
+                // ── 0c. English Levels ───────────────────────────────────────
                 ExpandableSection(icon = "📚", title = "רמות אנגלית — CEFR") {
                     LevelsSection(
                         levelsState = levelsState,

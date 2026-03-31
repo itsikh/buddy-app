@@ -22,6 +22,9 @@ interface MessageDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: Message)
 
+    @Query("DELETE FROM messages WHERE profileId = :profileId AND timestamp < :before")
+    suspend fun deleteMessagesBefore(profileId: String, before: Long)
+
     @Query("DELETE FROM messages WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: String)
 

@@ -73,6 +73,19 @@ class ConversationRepository @Inject constructor(
     suspend fun pruneOldMessages(profileId: String) =
         messageDao.pruneOldMessages(profileId)
 
+    /** Returns sessions that started within the last [days] days. */
+    suspend fun getSessionsWithinDays(profileId: String, days: Int): List<SessionLog> {
+        val since = System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000
+        return sessionLogDao.getSessionsSince(profileId, since)
+    }
+
+    /** Deletes sessions and their messages older than [keepDays] days. */
+    suspend fun pruneOldHistory(profileId: String, keepDays: Int) {
+        val before = System.currentTimeMillis() - keepDays.toLong() * 24 * 60 * 60 * 1000
+        messageDao.deleteMessagesBefore(profileId, before)
+        sessionLogDao.deleteSessionsBefore(profileId, before)
+    }
+
     suspend fun insertSessionLogs(logs: List<SessionLog>) = sessionLogDao.insertAll(logs)
 
     suspend fun deleteAllForProfile(profileId: String) {

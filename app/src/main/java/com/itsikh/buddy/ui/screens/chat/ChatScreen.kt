@@ -25,10 +25,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -54,6 +56,7 @@ fun ChatScreen(
     initialMode:    ChatMode = ChatMode.FREE_CHAT,
     onOpenSettings: () -> Unit,
     onOpenProgress: () -> Unit = {},
+    onOpenHistory:  () -> Unit = {},
     onBack:         (() -> Unit)? = null,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
@@ -127,6 +130,7 @@ fun ChatScreen(
                 onModeChange   = { viewModel.switchMode(it) },
                 onOpenSettings = onOpenSettings,
                 onOpenProgress = onOpenProgress,
+                onOpenHistory  = onOpenHistory,
                 onBack         = onBack
             )
         }
@@ -151,12 +155,13 @@ fun ChatScreen(
 
             // ── Conversational face area ─────────────────────────────────
             ConversationArea(
-                messages     = uiState.messages,
-                voiceState   = uiState.voiceState,
-                partialText  = uiState.partialSpeechText,
-                gender       = uiState.profile?.gender ?: "GIRL",
-                onStopSpeaking = { viewModel.stopSpeaking() },
-                modifier     = Modifier.weight(1f)
+                messages          = uiState.messages,
+                voiceState        = uiState.voiceState,
+                partialText       = uiState.partialSpeechText,
+                currentBuddyText  = uiState.currentBuddyText,
+                gender            = uiState.profile?.gender ?: "GIRL",
+                onStopSpeaking    = { viewModel.stopSpeaking() },
+                modifier          = Modifier.weight(1f)
             )
 
             // ── Transient error bar ──────────────────────────────────────
@@ -200,6 +205,7 @@ private fun ConversationArea(
     messages: List<Message>,
     voiceState: VoiceState,
     partialText: String,
+    currentBuddyText: String?,
     gender: String,
     onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
@@ -209,7 +215,7 @@ private fun ConversationArea(
     val lastUser  = messages.lastOrNull { it.role == "user" }
 
     Column(
-        modifier            = modifier.fillMaxWidth(),
+        modifier            = modifier.fillMaxWidth().clipToBounds(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
@@ -225,9 +231,11 @@ private fun ConversationArea(
         Spacer(Modifier.height(20.dp))
 
         // ── Buddy's current message ──────────────────────────────────────
+        // currentBuddyText is set immediately on SPEAKING to avoid the Race Condition
+        // where the Room Flow hasn't yet delivered the just-inserted DB row.
         val displayText = when {
             voiceState == VoiceState.THINKING -> null   // dots shown inside avatar ring
-            voiceState == VoiceState.SPEAKING && lastBuddy != null -> lastBuddy.text
+            currentBuddyText != null -> currentBuddyText
             lastBuddy != null -> lastBuddy.text
             else -> null
         }
@@ -285,6 +293,14 @@ private fun BuddyAvatar(
     onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    // Reduce avatar size in landscape to fit the compressed vertical space
+    val outerW = if (isLandscape) 130.dp else 185.dp
+    val outerH = if (isLandscape) 150.dp else 215.dp
+    val innerW = if (isLandscape) 110.dp else 155.dp
+    val innerH = if (isLandscape) 130.dp else 185.dp
+
     val infiniteTransition = rememberInfiniteTransition(label = "avatar")
 
     val breathe by infiniteTransition.animateFloat(
@@ -333,19 +349,19 @@ private fun BuddyAvatar(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(width = 185.dp, height = 215.dp)
+                .size(width = outerW, height = outerH)
                 .then(if (voiceState == VoiceState.SPEAKING) Modifier.clickable { onStopSpeaking() } else Modifier)
         ) {
             // Speaking: outer pulsing glow ring
             if (voiceState == VoiceState.SPEAKING) {
                 Box(
                     modifier = Modifier
-                        .size(width = 165.dp * ringScale, height = 195.dp * ringScale)
+                        .size(width = (outerW - 20.dp) * ringScale, height = (outerH - 20.dp) * ringScale)
                         .background(primaryContainer.copy(alpha = ringAlpha), RoundedCornerShape(28.dp))
                 )
                 Box(
                     modifier = Modifier
-                        .size(width = 163.dp, height = 193.dp)
+                        .size(width = outerW - 22.dp, height = outerH - 22.dp)
                         .background(primaryContainer.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
                 )
             }
@@ -354,7 +370,7 @@ private fun BuddyAvatar(
             if (voiceState == VoiceState.LISTENING) {
                 Box(
                     modifier = Modifier
-                        .size(width = 163.dp * listenScale, height = 193.dp * listenScale)
+                        .size(width = (outerW - 22.dp) * listenScale, height = (outerH - 22.dp) * listenScale)
                         .background(errorColor.copy(alpha = 0.22f), RoundedCornerShape(26.dp))
                 )
             }
@@ -362,7 +378,7 @@ private fun BuddyAvatar(
             // Robot image — clip to rounded rectangle, breathe when idle
             Box(
                 modifier = Modifier
-                    .size(width = 155.dp, height = 185.dp)
+                    .size(width = innerW, height = innerH)
                     .scale(if (voiceState == VoiceState.IDLE) breathe else 1f)
                     .clip(RoundedCornerShape(20.dp))
             ) {
@@ -719,6 +735,7 @@ private fun ChatTopBar(
     onModeChange: (ChatMode) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProgress: () -> Unit,
+    onOpenHistory: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     var showCoinDialog by remember { mutableStateOf(false) }
@@ -789,6 +806,9 @@ private fun ChatTopBar(
                             }
                         }
                     }
+                }
+                IconButton(onClick = onOpenHistory) {
+                    Icon(Icons.Default.History, contentDescription = "היסטוריה")
                 }
                 IconButton(onClick = onOpenProgress) {
                     Icon(Icons.Default.BarChart, contentDescription = "התקדמות")

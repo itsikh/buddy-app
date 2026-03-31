@@ -224,6 +224,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { debugSettings.setAppTheme(theme) }
     }
 
+    val historyDepthDays: StateFlow<Int> = debugSettings.historyDepthDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 30)
+
+    fun setHistoryDepthDays(days: Int) {
+        viewModelScope.launch { debugSettings.setHistoryDepthDays(days) }
+    }
+
     /** Admin only — set the child's coin balance to an exact value. */
     fun setCoins(amount: Int) {
         viewModelScope.launch {
