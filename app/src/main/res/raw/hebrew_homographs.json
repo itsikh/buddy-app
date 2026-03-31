@@ -1,0 +1,155 @@
+{
+  "_comment": "Hebrew homograph dictionary for TTS disambiguation. Each entry has a bare (unvocalized) form and niqqud variants. 'default' is used when no heuristic fires. 'noun' / 'verb' override when context signals are detected. All niqqud strings should be reviewed by a native Hebrew speaker/linguist.",
+  "entries": [
+    {
+      "bare": "ספר",
+      "default": "סֵפֶר",
+      "noun":    "סֵפֶר",
+      "verb":    "סָפַר"
+    },
+    {
+      "bare": "דבר",
+      "default": "דָּבָר",
+      "noun":    "דָּבָר",
+      "verb":    "דִּבֵּר"
+    },
+    {
+      "bare": "שנה",
+      "default": "שָׁנָה",
+      "noun":    "שָׁנָה",
+      "verb":    "שִׁנָּה"
+    },
+    {
+      "bare": "פתח",
+      "default": "פֶּתַח",
+      "noun":    "פֶּתַח",
+      "verb":    "פָּתַח"
+    },
+    {
+      "bare": "מלך",
+      "default": "מֶלֶךְ",
+      "noun":    "מֶלֶךְ",
+      "verb":    "מָלַךְ"
+    },
+    {
+      "bare": "עלה",
+      "default": "עָלָה",
+      "noun":    "עָלֶה",
+      "verb":    "עָלָה"
+    },
+    {
+      "bare": "שר",
+      "default": "שָׁר",
+      "noun":    "שַׂר",
+      "verb":    "שָׁר"
+    },
+    {
+      "bare": "צבע",
+      "default": "צֶבַע",
+      "noun":    "צֶבַע",
+      "verb":    "צָבַע"
+    },
+    {
+      "bare": "שמח",
+      "default": "שָׂמֵחַ",
+      "noun":    "שָׂמֵחַ",
+      "verb":    "שִׂמַּח"
+    },
+    {
+      "bare": "כתב",
+      "default": "כָּתַב",
+      "noun":    "כֶּתֶב",
+      "verb":    "כָּתַב"
+    },
+    {
+      "bare": "אם",
+      "default": "אִם",
+      "noun":    "אֵם",
+      "verb":    null
+    },
+    {
+      "bare": "עם",
+      "default": "עִם",
+      "noun":    "עַם",
+      "verb":    null
+    },
+    {
+      "bare": "חזה",
+      "default": "חָזֶה",
+      "noun":    "חָזֶה",
+      "verb":    "חָזָה"
+    },
+    {
+      "bare": "עבר",
+      "default": "עָבַר",
+      "noun":    "עֵבֶר",
+      "verb":    "עָבַר"
+    },
+    {
+      "bare": "דרך",
+      "default": "דֶּרֶךְ",
+      "noun":    "דֶּרֶךְ",
+      "verb":    "דָּרַךְ"
+    },
+    {
+      "bare": "שמע",
+      "default": "שָׁמַע",
+      "noun":    "שֵׁמַע",
+      "verb":    "שָׁמַע"
+    },
+    {
+      "bare": "כלה",
+      "default": "כַּלָּה",
+      "noun":    "כַּלָּה",
+      "verb":    "כָּלָה"
+    },
+    {
+      "bare": "פנה",
+      "default": "פָּנָה",
+      "noun":    "פִּנָּה",
+      "verb":    "פָּנָה"
+    },
+    {
+      "bare": "שבר",
+      "default": "שֶׁבֶר",
+      "noun":    "שֶׁבֶר",
+      "verb":    "שָׁבַר"
+    },
+    {
+      "bare": "נגע",
+      "default": "נָגַע",
+      "noun":    "נֶגַע",
+      "verb":    "נָגַע"
+    },
+    {
+      "bare": "רגע",
+      "default": "רֶגַע",
+      "noun":    "רֶגַע",
+      "verb":    "רָגַע"
+    },
+    {
+      "bare": "אסף",
+      "default": "אָסַף",
+      "noun":    "אֹסֶף",
+      "verb":    "אָסַף"
+    },
+    {
+      "bare": "צמח",
+      "default": "צֶמַח",
+      "noun":    "צֶמַח",
+      "verb":    "צָמַח"
+    },
+    {
+      "bare": "חדש",
+      "default": "חָדָשׁ",
+      "noun":    "חָדָשׁ",
+      "verb":    "חִדֵּשׁ"
+    },
+    {
+      "bare": "מסר",
+      "default": "מֶסֶר",
+      "noun":    "מֶסֶר",
+      "verb":    "מָסַר"
+    }
+  ]
+}

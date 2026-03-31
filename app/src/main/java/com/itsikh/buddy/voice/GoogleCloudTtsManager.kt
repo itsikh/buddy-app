@@ -41,7 +41,8 @@ class GoogleCloudTtsManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val keyManager: SecureKeyManager,
-    private val gson: Gson
+    private val gson: Gson,
+    private val homographResolver: HomographResolver
 ) {
     companion object {
         private const val TAG = "GoogleCloudTtsManager"
@@ -115,7 +116,7 @@ class GoogleCloudTtsManager @Inject constructor(
      */
     suspend fun speak(rawText: String, language: String = "HE") {
         stopSpeaking()
-        val text = cleanForTts(rawText)
+        val text = homographResolver.resolve(cleanForTts(rawText))
         if (text.isBlank()) return
 
         val apiKey = keyManager.getKey(AppConfig.KEY_GOOGLE_TTS)
