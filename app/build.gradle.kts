@@ -23,8 +23,8 @@ android {
         applicationId = "com.itsikh.buddy"
         minSdk = 26
         targetSdk = 35
-        versionCode = 111136
-        versionName = "0.0.36"
+        versionCode = 111137
+        versionName = "0.0.37"
     }
 
     signingConfigs {
