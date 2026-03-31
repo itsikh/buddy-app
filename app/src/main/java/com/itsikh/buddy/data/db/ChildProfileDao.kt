@@ -47,4 +47,7 @@ interface ChildProfileDao {
 
     @Query("UPDATE child_profiles SET coins = coins + :amount WHERE id = :id")
     suspend fun addCoins(id: String, amount: Int)
+
+    @Query("UPDATE child_profiles SET earnedBadgeIds = :badgeIds WHERE id = :id")
+    suspend fun updateEarnedBadgeIds(id: String, badgeIds: String)
 }

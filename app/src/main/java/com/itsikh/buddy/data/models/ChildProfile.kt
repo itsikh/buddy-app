@@ -65,5 +65,8 @@ data class ChildProfile(
 
     // ---- Buddy Coins ----
     /** Earned after real engaged sessions (≥10 min). Redeemable for real-world rewards. */
-    val coins: Int = 0
+    val coins: Int = 0,
+
+    /** Comma-separated badge IDs that have been awarded, persisted so they survive app restarts. */
+    val earnedBadgeIds: String = ""
 )

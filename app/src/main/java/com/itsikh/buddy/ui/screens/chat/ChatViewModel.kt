@@ -94,8 +94,7 @@ class ChatViewModel @Inject constructor(
     private var correctionsThisSession: Int = 0
     private var sessionXp: Int = 0
 
-    // Tracks earned badge IDs — loaded from DataStore/preferences in a real implementation
-    // For now kept in-memory per session
+    // Tracks earned badge IDs — loaded from the profile DB on first session so they survive restarts
     private val earnedBadgeIds = mutableSetOf<String>()
 
     init {
@@ -156,6 +155,10 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             val profile = profileRepository.getProfile() ?: return@launch
+            // Load persisted badge IDs so we never re-award a badge after an app restart
+            if (earnedBadgeIds.isEmpty() && profile.earnedBadgeIds.isNotBlank()) {
+                earnedBadgeIds.addAll(profile.earnedBadgeIds.split(",").filter { it.isNotBlank() })
+            }
             val session = conversationRepository.startSession(profile.id, mode)
             currentSessionLog = session
             sessionStartTime  = System.currentTimeMillis()
@@ -423,6 +426,9 @@ class ChatViewModel @Inject constructor(
                 vocabularyMastered = vocabMastered
             )
             earnedBadgeIds.addAll(newBadges)
+            if (newBadges.isNotEmpty()) {
+                profileRepository.updateEarnedBadgeIds(profile.id, earnedBadgeIds)
+            }
 
             // Close session record
             conversationRepository.closeSession(

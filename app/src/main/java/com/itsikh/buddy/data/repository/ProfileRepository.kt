@@ -32,6 +32,10 @@ class ProfileRepository @Inject constructor(
         dao.updateVocabMastered(id, count)
     }
 
+    suspend fun updateEarnedBadgeIds(id: String, badgeIds: Set<String>) {
+        dao.updateEarnedBadgeIds(id, badgeIds.joinToString(","))
+    }
+
     /**
      * Updates the streak for today's session.
      * - If last session was yesterday → increment streak
