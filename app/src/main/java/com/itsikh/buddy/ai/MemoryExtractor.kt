@@ -78,7 +78,10 @@ class MemoryExtractor @Inject constructor(
               "facts": [
                 {"category": "FAMILY|INTERESTS|ACTIVITIES|SCHOOL|OTHER", "key": "short label in English", "value": "what was mentioned in English"}
               ],
-              "new_english_words": ["word1", "word2"],
+              "new_english_words": [
+                {"word": "elephant", "hebrew": "פיל"},
+                {"word": "delicious", "hebrew": "טעים מאוד"}
+              ],
               "hebrew_summary": "2-3 sentence summary in Hebrew for parents"
             }
 
@@ -102,7 +105,9 @@ class MemoryExtractor @Inject constructor(
             - Include words they learned during this session that were new to them.
             - Skip extremely basic words (I, you, the, is, a, and).
             - Limit to the 5 most significant words.
+            - Each entry must be an object with "word" (English) and "hebrew" (a short Hebrew definition, 1-3 words).
             - If no notable English words, return [].
+            - Example: [{"word": "elephant", "hebrew": "פיל"}, {"word": "delicious", "hebrew": "טעים מאוד"}]
 
             FOR hebrew_summary:
             - 2-3 sentences in natural Hebrew.
@@ -147,11 +152,24 @@ class MemoryExtractor @Inject constructor(
                 ExtractedFact(cat, key, value)
             }
 
-            // Parse new English words — Gson returns List<Any> for JSON string arrays
+            // Parse new English words — new format: [{word, hebrew}]; old format: ["word"]
             @Suppress("UNCHECKED_CAST")
             val wordsRaw = parsed["new_english_words"] as? List<*> ?: emptyList<Any>()
-            val words = wordsRaw.mapNotNull { it?.toString()?.trim()?.lowercase() }
-                .filter { it.isNotBlank() }
+            // wordEntries: list of (word, hebrewDefinition?) pairs
+            data class WordEntry(val word: String, val hebrew: String?)
+            val wordEntries = wordsRaw.mapNotNull { item ->
+                when (item) {
+                    is Map<*, *> -> {
+                        val w = item["word"]?.toString()?.trim()?.lowercase() ?: return@mapNotNull null
+                        val h = item["hebrew"]?.toString()?.trim()?.takeIf { it.isNotBlank() }
+                        if (w.isBlank()) null else WordEntry(w, h)
+                    }
+                    else -> item?.toString()?.trim()?.lowercase()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { WordEntry(it, null) }
+                }
+            }
+            val words = wordEntries.map { it.word }
 
             val summary = parsed["hebrew_summary"]?.toString() ?: ""
 
@@ -164,10 +182,10 @@ class MemoryExtractor @Inject constructor(
                 savedFacts++
             }
 
-            // Persist new vocabulary
+            // Persist new vocabulary (with Hebrew definitions when available)
             var savedWords = 0
-            words.forEach { word ->
-                vocabularyRepository.addWordIfNew(profileId, word)
+            wordEntries.forEach { entry ->
+                vocabularyRepository.addWordIfNew(profileId, entry.word, entry.hebrew)
                 savedWords++
             }
 

@@ -140,15 +140,15 @@ class SpeechRecognitionManager @Inject constructor(
     }
 
     private fun speechErrorMessage(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_AUDIO              -> "Audio recording error"
-        SpeechRecognizer.ERROR_CLIENT             -> "Client error"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission required"
-        SpeechRecognizer.ERROR_NETWORK            -> "Network error — check connection"
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT    -> "Network timeout"
-        SpeechRecognizer.ERROR_NO_MATCH           -> "No speech detected — try again"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY    -> "Recognition service busy"
-        SpeechRecognizer.ERROR_SERVER             -> "Server error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT     -> "No speech detected"
-        else                                       -> "Unknown error ($error)"
+        SpeechRecognizer.ERROR_AUDIO              -> "בעיית מיקרופון — בדוק שהמיקרופון פנוי ונסה שוב"
+        SpeechRecognizer.ERROR_CLIENT             -> "לא שמעתי — נסה שוב"
+        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "נדרשת הרשאת מיקרופון"
+        SpeechRecognizer.ERROR_NETWORK            -> "בעיית חיבור — בדוק את האינטרנט"
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT    -> "פג הזמן — נסה שוב"
+        SpeechRecognizer.ERROR_NO_MATCH           -> "לא שמעתי — נסה שוב"
+        SpeechRecognizer.ERROR_RECOGNIZER_BUSY    -> "שירות הדיבור עסוק — נסה שוב"
+        SpeechRecognizer.ERROR_SERVER             -> "שגיאת שרת — נסה שוב"
+        SpeechRecognizer.ERROR_SPEECH_TIMEOUT     -> "לא שמעתי — נסה שוב"
+        else                                       -> "לא שמעתי — נסה שוב"
     }
 }

@@ -137,6 +137,7 @@ fun AppNavHost() {
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
                     onOpenHistory  = { navController.navigate("chat_history") },
+                    onOpenGarden   = { navController.navigate("garden") },
                     onBack         = null
                 )
             }
@@ -148,6 +149,7 @@ fun AppNavHost() {
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
                     onOpenHistory  = { navController.navigate("chat_history") },
+                    onOpenGarden   = { navController.navigate("garden") },
                     onBack         = null
                 )
             }

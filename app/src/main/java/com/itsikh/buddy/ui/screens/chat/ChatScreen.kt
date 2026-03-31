@@ -57,6 +57,7 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     onOpenProgress: () -> Unit = {},
     onOpenHistory:  () -> Unit = {},
+    onOpenGarden:   () -> Unit = {},
     onBack:         (() -> Unit)? = null,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
@@ -131,6 +132,7 @@ fun ChatScreen(
                 onOpenSettings = onOpenSettings,
                 onOpenProgress = onOpenProgress,
                 onOpenHistory  = onOpenHistory,
+                onOpenGarden   = onOpenGarden,
                 onBack         = onBack
             )
         }
@@ -736,6 +738,7 @@ private fun ChatTopBar(
     onOpenSettings: () -> Unit,
     onOpenProgress: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenGarden: () -> Unit,
     onBack: (() -> Unit)? = null
 ) {
     var showCoinDialog by remember { mutableStateOf(false) }
@@ -807,6 +810,9 @@ private fun ChatTopBar(
                             }
                         }
                     }
+                }
+                IconButton(onClick = onOpenGarden) {
+                    Text("🌱", fontSize = 20.sp)
                 }
                 IconButton(onClick = onOpenHistory) {
                     Icon(Icons.Default.History, contentDescription = "היסטוריה")

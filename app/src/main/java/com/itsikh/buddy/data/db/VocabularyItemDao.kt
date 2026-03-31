@@ -42,6 +42,9 @@ interface VocabularyItemDao {
     @Query("UPDATE vocabulary_items SET easeFactor = :ease, nextReviewDue = :nextDue, lastReviewed = :now, failedRecalls = failedRecalls + 1 WHERE id = :id")
     suspend fun recordFailure(id: String, ease: Float, nextDue: Long, now: Long = System.currentTimeMillis())
 
+    @Query("UPDATE vocabulary_items SET definition = :definition WHERE id = :id AND definition IS NULL")
+    suspend fun updateDefinitionIfMissing(id: String, definition: String)
+
     @Query("DELETE FROM vocabulary_items WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: String)
 }

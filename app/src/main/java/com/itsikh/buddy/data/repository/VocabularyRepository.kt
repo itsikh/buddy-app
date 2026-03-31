@@ -65,6 +65,9 @@ class VocabularyRepository @Inject constructor(
         dao.recordFailure(item.id, newEase, nextDue)
     }
 
+    suspend fun updateDefinitionIfMissing(id: String, definition: String) =
+        dao.updateDefinitionIfMissing(id, definition)
+
     suspend fun insertAll(items: List<VocabularyItem>) = dao.insertAll(items)
 
     suspend fun deleteAllForProfile(profileId: String) = dao.deleteAllForProfile(profileId)

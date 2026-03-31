@@ -99,6 +99,9 @@ class ChatViewModel @Inject constructor(
     // Tracks earned badge IDs — loaded from the profile DB on first session so they survive restarts
     private val earnedBadgeIds = mutableSetOf<String>()
 
+    // Debounce: don't let the child immediately retry after a hard STT error (mic jitter / busy state)
+    @Volatile private var lastSttErrorTime: Long = 0L
+
     init {
         loadProfile()
         collectAdminState()
@@ -219,6 +222,8 @@ class ChatViewModel @Inject constructor(
 
     /** Called when push-to-talk button is pressed down. */
     fun startListening() {
+        // Issue #14: debounce 800ms after hard STT errors (ERROR_AUDIO=3, ERROR_CLIENT=11)
+        if (System.currentTimeMillis() - lastSttErrorTime < 800L) return
         if (_uiState.value.voiceState == VoiceState.SPEAKING) {
             ttsManager.stopSpeaking()
         }
@@ -248,12 +253,14 @@ class ChatViewModel @Inject constructor(
                             sendUserMessage(result.text)
                         }
                         is SpeechRecognitionManager.SpeechResult.Error -> {
-                            val msg = if (result.code == SpeechRecognizer.ERROR_NO_MATCH ||
-                                          result.code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
-                                "לא שמעתי — נסה שוב"
-                            else
-                                result.message.ifBlank { "בעיה בזיהוי הדיבור — נסה שוב" }
-                            _uiState.update { it.copy(voiceState = VoiceState.IDLE, partialSpeechText = "", error = msg) }
+                            // Issue #12 & #14: on hard errors, record time for debounce and reset STT state
+                            val isHardError = result.code == SpeechRecognizer.ERROR_AUDIO ||
+                                              result.code == SpeechRecognizer.ERROR_CLIENT
+                            if (isHardError) {
+                                lastSttErrorTime = System.currentTimeMillis()
+                                sttManager.destroy()  // ensure clean slate for next use
+                            }
+                            _uiState.update { it.copy(voiceState = VoiceState.IDLE, partialSpeechText = "", error = result.message.ifBlank { "לא שמעתי — נסה שוב" }) }
                         }
                     }
                 }
