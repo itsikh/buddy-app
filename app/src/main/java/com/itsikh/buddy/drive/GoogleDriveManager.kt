@@ -447,4 +447,37 @@ class GoogleDriveManager @Inject constructor(
             null
         }
     }
+
+    // ── Key pack (buddy_keys.enc) ──────────────────────────────────────────────
+
+    /**
+     * Uploads the encrypted key pack to Drive AppData as [DriveFileNames.KEYS].
+     * The content is a Base64-encoded AES-256-GCM blob produced by [KeyPackManager].
+     * Requires the user to be signed in to Drive.
+     */
+    suspend fun uploadKeyPack(base64Content: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = getAccessToken()
+                ?: throw IllegalStateException("Not signed in to Google Drive")
+            uploadFile(token, DriveFileNames.KEYS, base64Content)
+            AppLogger.i(TAG, "Key pack uploaded to Drive")
+        }
+    }
+
+    /**
+     * Downloads the encrypted key pack from Drive AppData.
+     * Returns null if no key pack exists yet.
+     * Requires the user to be signed in to Drive.
+     */
+    suspend fun downloadKeyPack(): Result<String?> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = getAccessToken()
+                ?: throw IllegalStateException("Not signed in to Google Drive")
+            val files = listDriveFiles(token)
+            val fileId = files[DriveFileNames.KEYS] ?: return@runCatching null
+            downloadFile(token, fileId).also {
+                AppLogger.i(TAG, "Key pack downloaded from Drive")
+            }
+        }
+    }
 }

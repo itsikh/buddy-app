@@ -135,4 +135,15 @@ dependencies {
 
     // WorkManager (background Drive sync)
     implementation(libs.work.runtime.ktx)
+
+    // ZXing (QR code generation)
+    implementation(libs.zxing.core)
+
+    // CameraX (QR code scanning)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+
+    // ML Kit Barcode Scanning (QR code decoding)
+    implementation(libs.mlkit.barcode.scanning)
 }

@@ -20,6 +20,10 @@
     <!-- Required by Google Sign-In for Drive access -->
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
 
+    <!-- Camera for QR code scanning (key pack transfer) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
     <!-- Microphone is core functionality, not optional -->
     <uses-feature
         android:name="android.hardware.microphone"

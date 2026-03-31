@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -94,6 +95,7 @@ fun SettingsScreen(
     onOpenProgress: (() -> Unit)? = null,
     onOpenMemory: (() -> Unit)? = null,
     onOpenGarden: (() -> Unit)? = null,
+    onOpenKeyPack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val adminMode         by viewModel.adminMode.collectAsState()
@@ -677,6 +679,27 @@ fun SettingsScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(if (driveUiState.isSignedIn) "שחזר מ-Google Drive…" else "נדרש חיבור ל-Google Drive")
                             }
+                        }
+                    }
+                }
+
+                // ── 5b. Master Key Pack ───────────────────────────────────────
+                if (onOpenKeyPack != null) {
+                    ExpandableSection(icon = "🔑", title = "Master Key Pack") {
+                        Text(
+                            "Transfer all API keys to a new device via QR code or Google Drive. " +
+                            "Keys are encrypted — only accessible with your password.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = onOpenKeyPack,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.QrCode, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Open Key Pack")
                         }
                     }
                 }

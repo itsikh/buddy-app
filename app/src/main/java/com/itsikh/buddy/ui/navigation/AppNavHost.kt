@@ -27,6 +27,8 @@ import com.itsikh.buddy.ui.screens.memory.MemoryViewerScreen
 import com.itsikh.buddy.ui.screens.onboarding.ParentConsentScreen
 import com.itsikh.buddy.ui.screens.onboarding.ProfileSetupScreen
 import com.itsikh.buddy.ui.screens.progress.ProgressDashboardScreen
+import com.itsikh.buddy.ui.screens.keypack.KeyPackScreen
+import com.itsikh.buddy.ui.screens.keypack.QrScannerScreen
 import com.itsikh.buddy.ui.screens.settings.SettingsScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.map
@@ -153,9 +155,35 @@ fun AppNavHost() {
                     onOpenBugReport = { mode ->
                         navController.navigate("bug_report/${mode.name}")
                     },
-                    onOpenProgress = { navController.navigate("progress") },
-                    onOpenMemory   = { navController.navigate("memory") },
-                    onOpenGarden   = { navController.navigate("garden") }
+                    onOpenProgress  = { navController.navigate("progress") },
+                    onOpenMemory    = { navController.navigate("memory") },
+                    onOpenGarden    = { navController.navigate("garden") },
+                    onOpenKeyPack   = { navController.navigate("key_pack") }
+                )
+            }
+
+            // ---- Master Key Pack ----
+            composable("key_pack") { backStackEntry ->
+                val scannedPack = backStackEntry.savedStateHandle
+                    .get<String>("scanned_pack")
+                    ?.also { backStackEntry.savedStateHandle.remove<String>("scanned_pack") }
+                KeyPackScreen(
+                    onBack          = { navController.popBackStack() },
+                    onOpenScanner   = { navController.navigate("qr_scanner") },
+                    scannedPack     = scannedPack
+                )
+            }
+
+            // ---- QR Scanner ----
+            composable("qr_scanner") {
+                QrScannerScreen(
+                    onQrDetected = { pack ->
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("scanned_pack", pack)
+                        navController.popBackStack()
+                    },
+                    onBack = { navController.popBackStack() }
                 )
             }
 
