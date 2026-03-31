@@ -167,6 +167,8 @@ fun ChatScreen(
                 partialText       = uiState.partialSpeechText,
                 currentBuddyText  = uiState.currentBuddyText,
                 gender            = uiState.profile?.gender ?: "GIRL",
+                lastSpokenText    = uiState.lastSpokenText,
+                onRepeat          = { viewModel.repeatLastMessage() },
                 onStopSpeaking    = { viewModel.stopSpeaking() },
                 modifier          = Modifier.weight(1f)
             )
@@ -248,6 +250,8 @@ private fun ConversationArea(
     partialText: String,
     currentBuddyText: String?,
     gender: String,
+    lastSpokenText: String?,
+    onRepeat: () -> Unit,
     onStopSpeaking: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -290,12 +294,24 @@ private fun ConversationArea(
             label = "buddy_message"
         ) { text ->
             if (text != null) {
-                BuddySpeechBubble(
-                    text     = text,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                )
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+                    BuddySpeechBubble(text = text, modifier = Modifier.fillMaxWidth())
+                    if (lastSpokenText != null && voiceState == VoiceState.IDLE) {
+                        Row(
+                            modifier              = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            IconButton(onClick = onRepeat, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    imageVector     = Icons.Default.VolumeUp,
+                                    contentDescription = "הפעל שוב",
+                                    tint            = MaterialTheme.colorScheme.primary,
+                                    modifier        = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             } else if (voiceState == VoiceState.THINKING) {
                 ThinkingIndicator(
                     modifier = Modifier.padding(horizontal = 24.dp)

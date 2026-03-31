@@ -234,8 +234,9 @@ class GoogleCloudTtsManager @Inject constructor(
         .replace(Regex("https?://\\S+"), "")               // bare URLs
         .replace(Regex("!\\[.*?]\\(.*?\\)"), "")           // images
         .replace(Regex("[*_~|>]"), "")                     // remaining markdown chars
-        // Remove emoji and non-letter symbols, keep: Hebrew, Latin, digits, .,!?;:'"()-
-        .replace(Regex("[^\\p{L}\\p{N}\\s\\u05D0-\\u05EA.,!?;:'\"()\\-–—]"), " ")
+        // Remove emoji and non-letter symbols, keep: Hebrew, Latin, digits, .,!?;:'()-
+        .replace(Regex("[^\\p{L}\\p{N}\\s\\u05D0-\\u05EA.,!?;:'()\\-–—]"), " ")
+        .replace(Regex("!{2,}"), "!")                      // !! → ! (TTS over-emphasizes multiple !)
         .replace(Regex("[ \\t]+"), " ")
         .trim()
 

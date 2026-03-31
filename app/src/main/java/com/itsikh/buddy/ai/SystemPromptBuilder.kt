@@ -288,7 +288,8 @@ class SystemPromptBuilder @Inject constructor() {
             - Numbers as Hebrew words: "שלוש" not "3", "עשרה" not "10".
             - Never ALL-CAPS (TTS reads it letter by letter).
             - No abbreviations, no ellipsis, no em-dashes — commas and periods only.
-            - English phrases in quotes help TTS: say "I love it" not say I love it.
+            - NEVER use double quotation marks " — TTS reads them aloud as the word "quote". Write English phrases without surrounding quotes.
+            - Use at most ONE exclamation mark per response. Prefer periods for calm, natural sentences.
 
             EVERY TURN — ${profile.displayName} must say one English phrase:
             - Level ${profile.speakingLevel}: ${when (profile.speakingLevel) {

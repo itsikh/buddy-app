@@ -51,6 +51,7 @@ data class ChatUiState(
     // without waiting for the Room Flow to deliver the message. Cleared when
     // the next user turn begins (at which point lastBuddy in messages is set).
     val currentBuddyText: String?      = null,
+    val lastSpokenText: String?        = null,   // retained after speaking ends for the repeat button
 )
 
 enum class VoiceState {
@@ -252,8 +253,17 @@ class ChatViewModel @Inject constructor(
                             _uiState.update { it.copy(partialSpeechText = result.text) }
                         }
                         is SpeechRecognitionManager.SpeechResult.Final -> {
-                            _uiState.update { it.copy(partialSpeechText = "", voiceState = VoiceState.THINKING) }
-                            sendUserMessage(result.text)
+                            if (isMainlyHebrew(result.text)) {
+                                // Don't send Hebrew speech — guide child to speak English
+                                _uiState.update { it.copy(
+                                    partialSpeechText = "",
+                                    voiceState = VoiceState.IDLE,
+                                    error = "Try speaking in English! 🎉 נסה באנגלית"
+                                )}
+                            } else {
+                                _uiState.update { it.copy(partialSpeechText = "", voiceState = VoiceState.THINKING) }
+                                sendUserMessage(result.text)
+                            }
                         }
                         is SpeechRecognitionManager.SpeechResult.Error -> {
                             // Issue #12 & #14: on hard errors, record time for debounce and reset STT state
@@ -285,6 +295,17 @@ class ChatViewModel @Inject constructor(
         speakingJob = null
         ttsManager.stopSpeaking()
         _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
+    }
+
+    /** Re-speaks Buddy's last message. No-op if already speaking or nothing was spoken yet. */
+    fun repeatLastMessage() {
+        val text = _uiState.value.lastSpokenText ?: return
+        if (_uiState.value.voiceState != VoiceState.IDLE) return
+        _uiState.update { it.copy(voiceState = VoiceState.SPEAKING) }
+        speakingJob = viewModelScope.launch {
+            ttsManager.speak(text)
+            _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
+        }
     }
 
     /** Sends a typed text message (for accessibility or testing). */
@@ -358,7 +379,7 @@ class ChatViewModel @Inject constructor(
 
         // Fix Bug #11: set currentBuddyText immediately so the speech bubble shows
         // without waiting for the Room Flow to deliver the DB update.
-        _uiState.update { it.copy(voiceState = VoiceState.SPEAKING, currentBuddyText = text) }
+        _uiState.update { it.copy(voiceState = VoiceState.SPEAKING, currentBuddyText = text, lastSpokenText = text) }
         speakingJob = viewModelScope.launch {
             ttsManager.speak(text)
             _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
@@ -501,6 +522,17 @@ class ChatViewModel @Inject constructor(
 
     fun clearNewBadges() {
         _uiState.update { it.copy(newBadges = emptyList()) }
+    }
+
+    /**
+     * Returns true when the transcript is predominantly Hebrew (>50% of letter characters).
+     * Used to detect when a child speaks Hebrew instead of English and show a redirect prompt.
+     */
+    private fun isMainlyHebrew(text: String): Boolean {
+        val letters = text.count { it.isLetter() }
+        if (letters < 3) return false  // too short to judge
+        val hebrewChars = text.count { it in '\u05D0'..'\u05EA' }
+        return hebrewChars.toFloat() / letters > 0.5f
     }
 
     override fun onCleared() {
