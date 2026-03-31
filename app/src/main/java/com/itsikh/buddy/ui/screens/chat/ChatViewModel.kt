@@ -79,6 +79,9 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    // Separate scope for session teardown — not tied to viewModelScope so it survives onCleared()
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private var currentSessionLog: SessionLog? = null
     private var sessionStartTime: Long = 0L
     private var speakingJob: Job? = null
@@ -334,100 +337,112 @@ class ChatViewModel @Inject constructor(
     /** Called when the user leaves the chat screen or explicitly ends the session. */
     fun endSession() {
         if (!_uiState.value.isSessionActive) return
-        viewModelScope.launch {
-            ttsManager.stopSpeaking()
-            sttManager.stopListening()
+        viewModelScope.launch { endSessionInternal() }
+    }
 
-            val profile = profileRepository.getProfile() ?: return@launch
-            val session = currentSessionLog ?: return@launch
+    /**
+     * The actual session-teardown logic, extracted so it can be called from either
+     * [viewModelScope] (normal flow) or [cleanupScope] (app-kill / onCleared path).
+     */
+    private suspend fun endSessionInternal() {
+        ttsManager.stopSpeaking()
+        sttManager.stopListening()
 
-            val durationMs      = System.currentTimeMillis() - sessionStartTime
-            val durationMinutes = (durationMs / 60_000).toInt().coerceAtLeast(1)
+        val profile = profileRepository.getProfile() ?: run {
+            _uiState.update { it.copy(isSessionActive = false) }
+            return
+        }
+        val session = currentSessionLog ?: run {
+            _uiState.update { it.copy(isSessionActive = false) }
+            return
+        }
 
-            // Extract memory + words in background (don't block UI)
-            val sessionMessages = conversationRepository.getSessionMessages(session.id)
-            val extractionResult = withContext(Dispatchers.Default) {
-                try {
-                    memoryExtractor.extractFromSession(profile.id, profile.displayName, sessionMessages)
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "Memory extraction failed: ${e.message}")
-                    null
-                }
-            }
+        val durationMs      = System.currentTimeMillis() - sessionStartTime
+        val durationMinutes = (durationMs / 60_000).toInt().coerceAtLeast(1)
 
-            newWordsThisSession += extractionResult?.newWords?.size ?: 0
-
-            var newBadges = emptyList<String>()
-            var coinsEarned = 0
+        // Extract memory + words in background (don't block UI)
+        val sessionMessages = conversationRepository.getSessionMessages(session.id)
+        val extractionResult = withContext(Dispatchers.Default) {
             try {
-                // Award XP
-                val updatedProfile = profileRepository.updateStreak(profile)
-                sessionXp = xpManager.awardSessionXp(updatedProfile, durationMinutes, newWordsThisSession)
-
-                // ── Award Buddy Coins ──────────────────────────────────────────
-                val isFirstEverSession = profile.totalSessionMinutes == 0
-                if (isFirstEverSession) {
-                    // First-ever session bonus — always awarded regardless of quality
-                    coinsEarned += 10
-                    AppLogger.i(TAG, "First-ever session! Awarding 10 bonus coins")
-                }
-                if (durationMinutes >= 10 && turnCount >= 5) {
-                    // Ask AI to verify the child genuinely engaged (not just gibberish)
-                    val childMessages = sessionMessages.filter { it.role == "user" }
-                    val isGenuine = conversationManager.evaluateEngagement(childMessages)
-                    if (isGenuine) {
-                        val sessionCoins = (durationMinutes * 1.5).toInt().coerceAtMost(20)
-                        coinsEarned += sessionCoins
-                        AppLogger.i(TAG, "Genuine session: ${durationMinutes}min → $sessionCoins coins")
-                    } else {
-                        AppLogger.i(TAG, "AI judged session not genuine — no coins awarded")
-                    }
-                }
-                if (coinsEarned > 0) {
-                    profileRepository.addCoins(profile.id, coinsEarned)
-                }
-
-                // Evaluate badges
-                val totalSessions = conversationRepository.totalSessionCount(profile.id)
-                val vocabMastered = vocabularyRepository.countMastered(profile.id)
-                newBadges = badgeEvaluator.evaluate(
-                    profile            = updatedProfile,
-                    alreadyEarned      = earnedBadgeIds,
-                    sessionLog         = session,
-                    totalSessions      = totalSessions,
-                    vocabularyMastered = vocabMastered
-                )
-                earnedBadgeIds.addAll(newBadges)
-
-                // Close session record
-                conversationRepository.closeSession(
-                    sessionId       = session.id,
-                    durationMinutes = durationMinutes,
-                    turnCount       = turnCount,
-                    newWords        = newWordsThisSession,
-                    corrections     = correctionsThisSession,
-                    summary         = extractionResult?.hebrewSummary,
-                    xp              = sessionXp
-                )
-
-                // Update vocabulary mastered count on profile
-                profileRepository.recordSessionEnd(profile.id, durationMinutes)
-
-                // Trigger Drive sync (also persists coins)
-                DriveSyncWorker.enqueue(workManager)
-
-                AppLogger.i(TAG, "Session ended: ${durationMinutes}min, ${newWordsThisSession} new words, ${newBadges.size} badges, $coinsEarned coins")
+                memoryExtractor.extractFromSession(profile.id, profile.displayName, sessionMessages)
             } catch (e: Exception) {
-                AppLogger.e(TAG, "Error closing session: ${e.message}", e)
-            } finally {
-                _uiState.update { it.copy(
-                    isSessionActive        = false,
-                    newBadges              = newBadges,
-                    xpToday                = sessionXp,
-                    coinsEarnedThisSession = coinsEarned
-                )}
-                currentSessionLog = null
+                AppLogger.e(TAG, "Memory extraction failed: ${e.message}")
+                null
             }
+        }
+
+        newWordsThisSession += extractionResult?.newWords?.size ?: 0
+
+        var newBadges = emptyList<String>()
+        var coinsEarned = 0
+        try {
+            // Award XP
+            val updatedProfile = profileRepository.updateStreak(profile)
+            sessionXp = xpManager.awardSessionXp(updatedProfile, durationMinutes, newWordsThisSession)
+
+            // ── Award Buddy Coins ──────────────────────────────────────────
+            val isFirstEverSession = profile.totalSessionMinutes == 0
+            if (isFirstEverSession) {
+                // First-ever session bonus — always awarded regardless of quality
+                coinsEarned += 10
+                AppLogger.i(TAG, "First-ever session! Awarding 10 bonus coins")
+            }
+            if (durationMinutes >= 10 && turnCount >= 5) {
+                // Ask AI to verify the child genuinely engaged (not just gibberish)
+                val childMessages = sessionMessages.filter { it.role == "user" }
+                val isGenuine = conversationManager.evaluateEngagement(childMessages)
+                if (isGenuine) {
+                    val sessionCoins = (durationMinutes * 1.5).toInt().coerceAtMost(20)
+                    coinsEarned += sessionCoins
+                    AppLogger.i(TAG, "Genuine session: ${durationMinutes}min → $sessionCoins coins")
+                } else {
+                    AppLogger.i(TAG, "AI judged session not genuine — no coins awarded")
+                }
+            }
+            if (coinsEarned > 0) {
+                profileRepository.addCoins(profile.id, coinsEarned)
+            }
+
+            // Evaluate badges
+            val totalSessions = conversationRepository.totalSessionCount(profile.id)
+            val vocabMastered = vocabularyRepository.countMastered(profile.id)
+            newBadges = badgeEvaluator.evaluate(
+                profile            = updatedProfile,
+                alreadyEarned      = earnedBadgeIds,
+                sessionLog         = session,
+                totalSessions      = totalSessions,
+                vocabularyMastered = vocabMastered
+            )
+            earnedBadgeIds.addAll(newBadges)
+
+            // Close session record
+            conversationRepository.closeSession(
+                sessionId       = session.id,
+                durationMinutes = durationMinutes,
+                turnCount       = turnCount,
+                newWords        = newWordsThisSession,
+                corrections     = correctionsThisSession,
+                summary         = extractionResult?.hebrewSummary,
+                xp              = sessionXp
+            )
+
+            // Update vocabulary mastered count on profile
+            profileRepository.recordSessionEnd(profile.id, durationMinutes)
+
+            // Trigger Drive sync (also persists coins)
+            DriveSyncWorker.enqueue(workManager)
+
+            AppLogger.i(TAG, "Session ended: ${durationMinutes}min, ${newWordsThisSession} new words, ${newBadges.size} badges, $coinsEarned coins")
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Error closing session: ${e.message}", e)
+        } finally {
+            _uiState.update { it.copy(
+                isSessionActive        = false,
+                newBadges              = newBadges,
+                xpToday                = sessionXp,
+                coinsEarnedThisSession = coinsEarned
+            )}
+            currentSessionLog = null
         }
     }
 
@@ -447,11 +462,17 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
+        super.onCleared()  // cancels viewModelScope
         ttsManager.stopSpeaking()
         sttManager.destroy()
         if (_uiState.value.isSessionActive) {
-            viewModelScope.launch { endSession() }
+            // viewModelScope is already cancelled at this point — use cleanupScope instead
+            cleanupScope.launch {
+                endSessionInternal()
+                cleanupScope.cancel()
+            }
+        } else {
+            cleanupScope.cancel()
         }
     }
 }
