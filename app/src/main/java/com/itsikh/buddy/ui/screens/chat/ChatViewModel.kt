@@ -216,9 +216,6 @@ class ChatViewModel @Inject constructor(
         )}
     }
 
-    /** Returns true when Gemini STT should be used (key available). */
-    private fun useGeminiStt() = secureKeyManager.hasKey(AppConfig.KEY_GEMINI_API)
-
     /** Called when push-to-talk button is pressed down. */
     fun startListening() {
         // Issue #14: debounce 800ms after hard STT errors (ERROR_AUDIO=3, ERROR_CLIENT=11)
@@ -228,13 +225,7 @@ class ChatViewModel @Inject constructor(
         }
         _uiState.update { it.copy(voiceState = VoiceState.LISTENING, partialSpeechText = "") }
 
-        val sttFlow = if (useGeminiStt()) {
-            AppLogger.d(TAG, "STT: Gemini (bilingual)")
-            geminiSttManager.listen()
-        } else {
-            AppLogger.d(TAG, "STT: Android (English only fallback)")
-            sttManager.listen(language = "en-US")
-        }
+        val sttFlow = sttManager.listen(language = "en-US")
 
         // Use Main.immediate so the callbackFlow body (which sets `pending`) runs synchronously
         // before startListening() returns. Without this, stopListening() can be called while
@@ -278,9 +269,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Called when push-to-talk button is released — triggers Gemini transcription or Android STT finalization. */
+    /** Called when push-to-talk button is released. */
     fun stopListening() {
-        if (useGeminiStt()) geminiSttManager.stopListening() else sttManager.stopListening()
+        sttManager.stopListening()
     }
 
     fun dismissError() {
@@ -537,7 +528,6 @@ class ChatViewModel @Inject constructor(
         super.onCleared()  // cancels viewModelScope
         ttsManager.stopSpeaking()
         sttManager.destroy()
-        geminiSttManager.destroy()
         if (_uiState.value.isSessionActive) {
             // viewModelScope is already cancelled at this point — use cleanupScope instead
             cleanupScope.launch {
