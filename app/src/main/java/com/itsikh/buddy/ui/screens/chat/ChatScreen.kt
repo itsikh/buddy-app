@@ -296,24 +296,7 @@ private fun ConversationArea(
             label = "buddy_message"
         ) { text ->
             if (text != null) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-                    BuddySpeechBubble(text = text, modifier = Modifier.fillMaxWidth())
-                    if (lastSpokenText != null && voiceState == VoiceState.IDLE) {
-                        Row(
-                            modifier              = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            IconButton(onClick = onRepeat, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    imageVector     = Icons.Default.VolumeUp,
-                                    contentDescription = "הפעל שוב",
-                                    tint            = MaterialTheme.colorScheme.primary,
-                                    modifier        = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                BuddySpeechBubble(text = text, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
             } else if (voiceState == VoiceState.THINKING) {
                 ThinkingIndicator(
                     modifier = Modifier.padding(horizontal = 24.dp)
