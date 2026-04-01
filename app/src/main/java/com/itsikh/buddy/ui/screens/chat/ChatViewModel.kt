@@ -247,7 +247,7 @@ class ChatViewModel @Inject constructor(
                                 _uiState.update { it.copy(
                                     partialSpeechText = "",
                                     voiceState = VoiceState.IDLE,
-                                    error = "Try speaking in English! 🎉 נסה באנגלית"
+                                    error = "דבר אנגלית בבקשה"
                                 )}
                             } else {
                                 _uiState.update { it.copy(partialSpeechText = "", voiceState = VoiceState.THINKING) }

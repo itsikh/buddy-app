@@ -227,9 +227,11 @@ fun ChatScreen(
                 isSessionActive     = uiState.isSessionActive,
                 voiceState          = uiState.voiceState,
                 hasAudioPermission  = hasAudioPermission,
+                lastSpokenText      = uiState.lastSpokenText,
                 onStart             = { viewModel.startSession(uiState.mode) },
                 onRequestPermission = { requestMicPermission.launch(Manifest.permission.RECORD_AUDIO) },
-                onStopSpeaking = { viewModel.stopSpeaking() },
+                onStopSpeaking      = { viewModel.stopSpeaking() },
+                onRepeat            = { viewModel.repeatLastMessage() },
                 onPressDown = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.startListening()
@@ -925,9 +927,11 @@ private fun VoiceControlBar(
     isSessionActive: Boolean,
     voiceState: VoiceState,
     hasAudioPermission: Boolean,
+    lastSpokenText: String?,
     onStart: () -> Unit,
     onRequestPermission: () -> Unit,
     onStopSpeaking: () -> Unit,
+    onRepeat: () -> Unit,
     onPressDown: () -> Unit,
     onPressUp: () -> Unit
 ) {
@@ -1041,34 +1045,66 @@ private fun VoiceControlBar(
                 modifier = Modifier.padding(bottom = 14.dp)
             )
 
-            Box(
-                modifier = Modifier
-                    .size(88.dp)
-                    .scale(scale)
-                    .background(
-                        color = if (isListening) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape
-                    )
-                    .pointerInput(enabled, voiceState) {
-                        if (!enabled) return@pointerInput
-                        detectTapGestures(
-                            onPress = {
-                                onPressDown()
-                                tryAwaitRelease()
-                                onPressUp()
-                            }
-                        )
-                    },
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment    = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector        = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
-                    contentDescription = "Push to talk",
-                    tint               = if (isListening) Color.White
-                                         else MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier           = Modifier.size(40.dp)
-                )
+                // Spacer on left to balance the repeat button on the right
+                Spacer(Modifier.size(56.dp))
+
+                Spacer(Modifier.width(16.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .scale(scale)
+                        .background(
+                            color = if (isListening) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        )
+                        .pointerInput(enabled, voiceState) {
+                            if (!enabled) return@pointerInput
+                            detectTapGestures(
+                                onPress = {
+                                    onPressDown()
+                                    tryAwaitRelease()
+                                    onPressUp()
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector        = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = "Push to talk",
+                        tint               = if (isListening) Color.White
+                                             else MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier           = Modifier.size(40.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(16.dp))
+
+                // ── Repeat last message button ────────────────────────────
+                if (lastSpokenText != null && voiceState == VoiceState.IDLE) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                            .clickable(onClick = onRepeat),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector        = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = "הפעל שוב",
+                            tint               = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier           = Modifier.size(26.dp)
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.size(56.dp))
+                }
             }
         }
     }
