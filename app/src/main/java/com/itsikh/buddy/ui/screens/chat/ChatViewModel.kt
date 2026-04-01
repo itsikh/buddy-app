@@ -17,7 +17,6 @@ import com.itsikh.buddy.gamification.XpManager
 import com.itsikh.buddy.logging.AppLogger
 import com.itsikh.buddy.security.SecureKeyManager
 import com.itsikh.buddy.logging.DebugSettings
-import com.itsikh.buddy.voice.GeminiSttManager
 import com.itsikh.buddy.voice.GoogleCloudTtsManager
 import com.itsikh.buddy.voice.TtsBackend
 import android.speech.SpeechRecognizer
@@ -72,7 +71,6 @@ class ChatViewModel @Inject constructor(
     private val memoryExtractor: MemoryExtractor,
     private val ttsManager: GoogleCloudTtsManager,
     private val sttManager: SpeechRecognitionManager,
-    private val geminiSttManager: GeminiSttManager,
     private val xpManager: XpManager,
     private val badgeEvaluator: BadgeEvaluator,
     private val workManager: WorkManager,
