@@ -27,10 +27,6 @@ import com.itsikh.buddy.ui.screens.memory.MemoryViewerScreen
 import com.itsikh.buddy.ui.screens.onboarding.ParentConsentScreen
 import com.itsikh.buddy.ui.screens.onboarding.ProfileSetupScreen
 import com.itsikh.buddy.ui.screens.progress.ProgressDashboardScreen
-import com.itsikh.buddy.ui.screens.keypack.KeyPackScreen
-import com.itsikh.buddy.ui.screens.keypack.QrScannerScreen
-import com.itsikh.buddy.ui.screens.garden.WordQuizScreen
-import com.itsikh.buddy.ui.screens.history.ChatHistoryScreen
 import com.itsikh.buddy.ui.screens.settings.SettingsScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.map
@@ -168,36 +164,6 @@ fun AppNavHost() {
                 )
             }
 
-            // ---- Master Key Pack ----
-            composable("key_pack") { backStackEntry ->
-                val scannedPack = backStackEntry.savedStateHandle
-                    .get<String>("scanned_pack")
-                    ?.also { backStackEntry.savedStateHandle.remove<String>("scanned_pack") }
-                KeyPackScreen(
-                    onBack          = { navController.popBackStack() },
-                    onOpenScanner   = { navController.navigate("qr_scanner") },
-                    scannedPack     = scannedPack
-                )
-            }
-
-            // ---- QR Scanner ----
-            composable("qr_scanner") {
-                QrScannerScreen(
-                    onQrDetected = { pack ->
-                        navController.previousBackStackEntry
-                            ?.savedStateHandle
-                            ?.set("scanned_pack", pack)
-                        navController.popBackStack()
-                    },
-                    onBack = { navController.popBackStack() }
-                )
-            }
-
-            // ---- Chat history ----
-            composable("chat_history") {
-                ChatHistoryScreen(onBack = { navController.popBackStack() })
-            }
-
             // ---- Parent-gated screens ----
             composable("progress") {
                 ProgressDashboardScreen(onBack = { navController.popBackStack() })
@@ -212,10 +178,6 @@ fun AppNavHost() {
                     onBack      = { navController.popBackStack() },
                     onStartQuiz = { navController.navigate("word_quiz") }
                 )
-            }
-
-            composable("word_quiz") {
-                WordQuizScreen(onBack = { navController.popBackStack() })
             }
 
             // ---- Bug report (existing infrastructure) ----
