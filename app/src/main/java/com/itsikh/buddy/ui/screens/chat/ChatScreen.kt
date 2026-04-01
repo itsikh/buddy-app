@@ -1079,7 +1079,7 @@ private fun VoiceControlBar(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector        = Icons.AutoMirrored.Filled.VolumeUp,
+                            imageVector        = Icons.Default.VolumeUp,
                             contentDescription = "הפעל שוב",
                             tint               = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier           = Modifier.size(26.dp)
