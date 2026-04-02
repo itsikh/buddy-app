@@ -132,7 +132,7 @@ fun AppNavHost() {
                     initialMode    = chatMode,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
-                    onOpenHistory  = { navController.navigate("chat_history") },
+                    onOpenHistory  = { navController.navigate("memory") },
                     onOpenGarden   = { navController.navigate("garden") },
                     onBack         = null
                 )
@@ -144,7 +144,7 @@ fun AppNavHost() {
                     initialMode    = ChatMode.FREE_CHAT,
                     onOpenSettings = { navController.navigate("settings") },
                     onOpenProgress = { navController.navigate("progress") },
-                    onOpenHistory  = { navController.navigate("chat_history") },
+                    onOpenHistory  = { navController.navigate("memory") },
                     onOpenGarden   = { navController.navigate("garden") },
                     onBack         = null
                 )
