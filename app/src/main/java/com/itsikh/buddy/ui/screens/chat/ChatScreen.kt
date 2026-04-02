@@ -1046,7 +1046,7 @@ private fun VoiceControlBar(
                                     else MaterialTheme.colorScheme.primaryContainer,
                             shape = CircleShape
                         )
-                        .pointerInput(enabled, voiceState) {
+                        .pointerInput(enabled) {
                             if (!enabled) return@pointerInput
                             detectTapGestures(
                                 onPress = {
