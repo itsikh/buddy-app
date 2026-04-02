@@ -176,7 +176,7 @@ fun AppNavHost() {
             composable("garden") {
                 VocabularyGardenScreen(
                     onBack      = { navController.popBackStack() },
-                    onStartQuiz = { navController.navigate("word_quiz") }
+                    onStartQuiz = { navController.navigate("chat/ROLE_PLAY") }
                 )
             }
 
