@@ -160,7 +160,7 @@ fun AppNavHost() {
                     onOpenProgress  = { navController.navigate("progress") },
                     onOpenMemory    = { navController.navigate("memory") },
                     onOpenGarden    = { navController.navigate("garden") },
-                    onOpenKeyPack   = { navController.navigate("key_pack") }
+                    onOpenKeyPack   = null
                 )
             }
 
@@ -178,6 +178,16 @@ fun AppNavHost() {
                     onBack      = { navController.popBackStack() },
                     onStartQuiz = { navController.navigate("chat/ROLE_PLAY") }
                 )
+            }
+
+            // Legacy redirect — saved back stacks from versions prior to 0.0.46 may
+            // still reference this route; redirect to garden instead of crashing.
+            composable("word_quiz") {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    navController.navigate("garden") {
+                        popUpTo("word_quiz") { inclusive = true }
+                    }
+                }
             }
 
             // ---- Bug report (existing infrastructure) ----
