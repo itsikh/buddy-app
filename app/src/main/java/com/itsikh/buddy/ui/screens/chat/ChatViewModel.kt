@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import com.itsikh.buddy.AppConfig
+import com.itsikh.buddy.ai.AiRouter
 import com.itsikh.buddy.ai.ConversationManager
 import com.itsikh.buddy.ai.MemoryExtractor
 import com.itsikh.buddy.data.models.*
@@ -51,6 +52,13 @@ data class ChatUiState(
     // the next user turn begins (at which point lastBuddy in messages is set).
     val currentBuddyText: String?      = null,
     val lastSpokenText: String?        = null,   // retained after speaking ends for the repeat button
+    val wordLookup: WordLookupState?   = null,
+)
+
+data class WordLookupState(
+    val word: String,
+    val hebrewTranslation: String? = null,
+    val isLoading: Boolean = true
 )
 
 enum class VoiceState {
@@ -68,6 +76,7 @@ class ChatViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val vocabularyRepository: VocabularyRepository,
     private val conversationManager: ConversationManager,
+    private val aiRouter: AiRouter,
     private val memoryExtractor: MemoryExtractor,
     private val ttsManager: GoogleCloudTtsManager,
     private val sttManager: SpeechRecognitionManager,
@@ -295,6 +304,43 @@ class ChatViewModel @Inject constructor(
             ttsManager.speak(text)
             _uiState.update { it.copy(voiceState = VoiceState.IDLE) }
         }
+    }
+
+    // ── Word tap / dictionary lookup ──────────────────────────────────────────
+
+    fun onWordTapped(word: String) {
+        viewModelScope.launch {
+            val profileId = _uiState.value.profile?.id ?: return@launch
+            _uiState.update { it.copy(wordLookup = WordLookupState(word = word, isLoading = true)) }
+
+            // Check vocab DB first (many words are already stored with definitions)
+            val vocabItem = vocabularyRepository.findByWord(profileId, word)
+            if (vocabItem?.definition != null) {
+                _uiState.update { it.copy(wordLookup = WordLookupState(word, vocabItem.definition, false)) }
+                return@launch
+            }
+
+            // Fall back to a lightweight AI translation
+            try {
+                val translation = aiRouter.chat(
+                    systemPrompt = "You are a Hebrew dictionary. Reply with ONLY the Hebrew translation of the given English word (1-4 words). No punctuation. No explanation.",
+                    history      = emptyList(),
+                    userMessage  = word
+                )
+                _uiState.update { it.copy(wordLookup = WordLookupState(word, translation.trim(), false)) }
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Word translation failed: ${e.message}")
+                _uiState.update { it.copy(wordLookup = WordLookupState(word, null, false)) }
+            }
+        }
+    }
+
+    fun dismissWordLookup() {
+        _uiState.update { it.copy(wordLookup = null) }
+    }
+
+    fun speakEnglishWord(word: String) {
+        viewModelScope.launch { ttsManager.speak(word) }
     }
 
     /** Sends a typed text message (for accessibility or testing). */

@@ -37,12 +37,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -170,8 +175,18 @@ fun ChatScreen(
                 lastSpokenText    = uiState.lastSpokenText,
                 onRepeat          = { viewModel.repeatLastMessage() },
                 onStopSpeaking    = { viewModel.stopSpeaking() },
+                onWordTapped      = { viewModel.onWordTapped(it) },
                 modifier          = Modifier.weight(1f)
             )
+
+            // ── Word lookup popup ─────────────────────────────────────────
+            uiState.wordLookup?.let { lookup ->
+                WordLookupDialog(
+                    state     = lookup,
+                    onDismiss = { viewModel.dismissWordLookup() },
+                    onSpeak   = { viewModel.speakEnglishWord(it) }
+                )
+            }
 
             // ── Transient error bar ──────────────────────────────────────
             AnimatedVisibility(visible = uiState.error != null) {
@@ -255,6 +270,7 @@ private fun ConversationArea(
     lastSpokenText: String?,
     onRepeat: () -> Unit,
     onStopSpeaking: () -> Unit,
+    onWordTapped: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Split last buddy / user messages
@@ -296,7 +312,7 @@ private fun ConversationArea(
             label = "buddy_message"
         ) { text ->
             if (text != null) {
-                BuddySpeechBubble(text = text, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
+                BuddySpeechBubble(text = text, onWordTapped = onWordTapped, modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp))
             } else if (voiceState == VoiceState.THINKING) {
                 ThinkingIndicator(
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -448,9 +464,34 @@ private fun BuddyAvatar(
 
 // ── Buddy speech bubble ────────────────────────────────────────────────────
 @Composable
-private fun BuddySpeechBubble(text: String, modifier: Modifier = Modifier) {
+private fun BuddySpeechBubble(
+    text: String,
+    onWordTapped: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val wordColor    = MaterialTheme.colorScheme.primary
+    val contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+
+    // Build AnnotatedString once per text+color change.
+    // English word tokens get a clickable annotation + underline highlight.
+    val annotated = remember(text, wordColor) {
+        val englishWord = Regex("[a-zA-Z]+(?:'[a-zA-Z]+)*")
+        buildAnnotatedString {
+            var cursor = 0
+            englishWord.findAll(text).forEach { match ->
+                append(text.substring(cursor, match.range.first))
+                pushStringAnnotation(tag = "WORD", annotation = match.value)
+                withStyle(SpanStyle(color = wordColor, textDecoration = TextDecoration.Underline)) {
+                    append(match.value)
+                }
+                pop()
+                cursor = match.range.last + 1
+            }
+            if (cursor < text.length) append(text.substring(cursor))
+        }
+    }
+
     Column(modifier = modifier) {
-        // Small label
         Text(
             text  = "Buddy אומר:",
             style = MaterialTheme.typography.labelSmall,
@@ -464,24 +505,28 @@ private fun BuddySpeechBubble(text: String, modifier: Modifier = Modifier) {
                 bottomStart = 24.dp,
                 bottomEnd   = 24.dp
             ),
-            color       = MaterialTheme.colorScheme.secondaryContainer,
+            color          = MaterialTheme.colorScheme.secondaryContainer,
             tonalElevation = 2.dp,
-            modifier    = modifier.fillMaxWidth()
+            modifier       = modifier.fillMaxWidth()
         ) {
             Box(
                 modifier = Modifier
                     .heightIn(max = 220.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    text     = text,
+                ClickableText(
+                    text     = annotated,
                     style    = MaterialTheme.typography.bodyLarge.copy(
                         fontSize      = 18.sp,
                         lineHeight    = 26.sp,
-                        textDirection = TextDirection.Content
+                        textDirection = TextDirection.Content,
+                        color         = contentColor
                     ),
-                    color    = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    onClick  = { offset ->
+                        annotated.getStringAnnotations("WORD", offset, offset)
+                            .firstOrNull()?.let { onWordTapped(it.item) }
+                    }
                 )
             }
         }
@@ -578,6 +623,58 @@ private fun UserEcho(text: String, partial: Boolean, modifier: Modifier = Modifi
             }
         }
     }
+}
+
+// ── Word Lookup Dialog ─────────────────────────────────────────────────────
+@Composable
+private fun WordLookupDialog(
+    state: WordLookupState,
+    onDismiss: () -> Unit,
+    onSpeak: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text  = state.word,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = { onSpeak(state.word) }) {
+                    Icon(Icons.Filled.VolumeUp, contentDescription = "Hear word")
+                }
+            }
+        },
+        text = {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier.fillMaxWidth()
+            ) {
+                when {
+                    state.isLoading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                    state.hebrewTranslation != null -> Text(
+                        text      = state.hebrewTranslation,
+                        style     = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.End,
+                        modifier  = Modifier.fillMaxWidth()
+                    )
+                    else -> Text(
+                        text  = "לא נמצא תרגום",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("סגור") }
+        }
+    )
 }
 
 // ── Coin Rewards Dialog ────────────────────────────────────────────────────

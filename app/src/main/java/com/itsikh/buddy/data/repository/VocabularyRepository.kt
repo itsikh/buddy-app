@@ -68,6 +68,9 @@ class VocabularyRepository @Inject constructor(
     suspend fun updateDefinitionIfMissing(id: String, definition: String) =
         dao.updateDefinitionIfMissing(id, definition)
 
+    suspend fun findByWord(profileId: String, word: String): VocabularyItem? =
+        dao.findByWord(profileId, word.lowercase().trim())
+
     suspend fun insertAll(items: List<VocabularyItem>) = dao.insertAll(items)
 
     suspend fun deleteAllForProfile(profileId: String) = dao.deleteAllForProfile(profileId)
