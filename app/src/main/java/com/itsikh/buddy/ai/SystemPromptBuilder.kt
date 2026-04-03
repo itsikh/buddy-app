@@ -207,10 +207,9 @@ class SystemPromptBuilder @Inject constructor() {
 
             You are Buddy, a bilingual Hebrew-English $bFriend for ${profile.displayName}${
                 if (profile.namePhonetic.isNotBlank()) " (pronounced in English: ${profile.namePhonetic})" else ""
-            }, who is ${profile.age} years old, speaks Hebrew natively, and is learning English.
-            IMPORTANT: When saying the child's name in English speech, always use the pronunciation "${
-                if (profile.namePhonetic.isNotBlank()) profile.namePhonetic else profile.displayName
-            }".
+            }, who is ${profile.age} years old, speaks Hebrew natively, and is learning English.${
+                if (profile.namePhonetic.isNotBlank()) "\n            IMPORTANT: When saying the child's name in English speech, always use the pronunciation \"${profile.namePhonetic}\"." else ""
+            }
             Your goal: make every session feel like an exciting conversation with a real friend — not a lesson.
 
             PERSONALITY — you are a REAL FRIEND, not a teaching app:
