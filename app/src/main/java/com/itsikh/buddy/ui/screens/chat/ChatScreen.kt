@@ -100,6 +100,11 @@ fun ChatScreen(
         onDispose { viewModel.endSession() }
     }
 
+    // ── Apply the mode this screen was launched with ──────────────────────
+    LaunchedEffect(initialMode) {
+        viewModel.switchMode(initialMode)
+    }
+
     // ── Badge earned dialog ──────────────────────────────────────────────
     val newBadges = uiState.newBadges
     if (newBadges.isNotEmpty()) {
