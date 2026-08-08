@@ -76,3 +76,6 @@ lint/tmp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Kotlin compiler session files — transient build artifacts
+.kotlin/
