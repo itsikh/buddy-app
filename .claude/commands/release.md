@@ -4,7 +4,7 @@ Run this entire block as **one Bash call**. Do not split it up. If the build fai
 
 ```bash
 set -euo pipefail
-export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"
 cd "$(git rev-parse --show-toplevel)"
 
 # ── Read config ───────────────────────────────────────────────────────────────
